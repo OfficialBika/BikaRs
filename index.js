@@ -62,7 +62,7 @@ const reportSchema = new mongoose.Schema(
   {
     reporterId: { type: Number, required: true, index: true },
     targetUserId: { type: Number, required: true, index: true },
-    reason: { type: String, default: 'fake profile' },
+    reason: { type: String, default: 'အတုအယောင် profile' },
     status: { type: String, enum: ['pending', 'ignored', 'resolved'], default: 'pending', index: true },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
@@ -90,10 +90,10 @@ function isAdmin(id) {
 
 function mainMenuKeyboard() {
   return Markup.keyboard([
-    ['📝 သင့်အချက်အလက်ဖြည့်ပါ', '👤 ကျွန်ုပ်၏ Profile'],
+    ['📝 Profile ဖြည့်ရန်', '👤 ကျွန်ုပ်၏ Profile'],
     ['👧 Girls List', '👦 Boys List'],
-    ['✏️ Edit Profile', '🎲 ကျပန်း Profile ရှာ'],
-    ['ℹ️ Help'],
+    ['✏️ Profile ပြင်ရန်', '🎲 ကျပန်း Profile ကြည့်ရန်'],
+    ['ℹ️ အကူအညီ'],
   ]).resize();
 }
 
@@ -173,10 +173,10 @@ function buildProfileCaption(user, index, total) {
     '💘 <b>Relationship Profile</b>',
     '',
     `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName)}`,
-    `⚧ <b>ကျား/မ:</b> ${escapeHtml(genderLabel(user.gender))}`,
+    `⚧ <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
     `🎂 <b>အသက်:</b> ${escapeHtml(user.age)}`,
     `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby)}`,
-    `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'No username'}`,
+    `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
     '',
@@ -191,7 +191,7 @@ function buildProfileButtons(user, gender, index, total, isAdminView = false) {
       Markup.button.callback(`❤ ${user.reactions?.love || 0}`, `rx:love:${user.telegramId}:${gender}:${index}`),
       Markup.button.callback(`🤣 ${user.reactions?.laugh || 0}`, `rx:laugh:${user.telegramId}:${gender}:${index}`),
     ],
-    [Markup.button.url('👤 Open Telegram', profileOpenUrl(user))],
+    [Markup.button.url('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user))],
     [Markup.button.callback('🚨 Report', `report:${user.telegramId}:${gender}:${index}`)],
     [
       Markup.button.callback('⬅️ Back', `nav:${gender}:${Math.max(index - 1, 0)}`),
@@ -258,8 +258,8 @@ async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) 
 
   if (!list.length) {
     const text = gender === 'female'
-      ? '👧 Girls list မှာ profile မရှိသေးပါ။'
-      : '👦 Boys list မှာ profile မရှိသေးပါ။';
+      ? '👧 Girls List ထဲမှာ profile မရှိသေးပါ။'
+      : '👦 Boys List ထဲမှာ profile မရှိသေးပါ။';
 
     if (ctx.updateType === 'callback_query') {
       await ctx.answerCbQuery();
@@ -287,18 +287,18 @@ async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) 
 async function showMyProfile(ctx) {
   const user = await getProfileByTelegramId(ctx.from.id);
   if (!user || !user.isProfileComplete) {
-    await ctx.reply('အရင်ဆုံး profile ဖြည့်ပါ။', mainMenuKeyboard());
+    await ctx.reply('အရင်ဆုံး သင့် profile ကို ဖြည့်ပေးပါ။', mainMenuKeyboard());
     return;
   }
 
   const caption = [
-    '👤 <b>My Profile</b>',
+    '👤 <b>ကျွန်ုပ်၏ Profile</b>',
     '',
     `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName)}`,
-    `⚧ <b>ကျား/မ:</b> ${escapeHtml(genderLabel(user.gender))}`,
+    `⚧ <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
     `🎂 <b>အသက်:</b> ${escapeHtml(user.age)}`,
     `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby)}`,
-    `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'No username'}`,
+    `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
   ].join('\n');
@@ -307,8 +307,8 @@ async function showMyProfile(ctx) {
     caption,
     parse_mode: 'HTML',
     reply_markup: Markup.inlineKeyboard([
-      [Markup.button.callback('✏️ Edit Profile', 'edit:profile')],
-      [Markup.button.callback(user.isHidden ? '👁 Show Profile' : '🙈 Hide Profile', 'toggle:hide')],
+      [Markup.button.callback('✏️ Profile ပြင်ရန်', 'edit:profile')],
+      [Markup.button.callback(user.isHidden ? '👁 Profile ပြန်ပြရန်' : '🙈 Profile ဖျောက်ရန်', 'toggle:hide')],
     ]).reply_markup,
   });
 }
@@ -332,8 +332,8 @@ async function startProfileFlow(ctx, editing = false) {
 
   await ctx.reply(
     editing
-      ? '✏️ Profile edit စနေပါပြီ။\n\nနာမည်ပို့ပါ။'
-      : '📝 Profile register စနေပါပြီ။\n\nနာမည်ပို့ပါ။',
+      ? '✏️ Profile ပြင်ဆင်မှု စတင်ပါပြီ။\n\nနာမည်ကို အရင်ပို့ပါ။'
+      : '📝 Profile ဖြည့်သွင်းမှု စတင်ပါပြီ။\n\nနာမည်ကို အရင်ပို့ပါ။',
     Markup.removeKeyboard()
   );
 }
@@ -344,7 +344,7 @@ async function finishProfileFlow(ctx) {
 
   if (!ctx.from.username) {
     await ctx.reply(
-      'Telegram username မရှိသေးပါ။ Settings ထဲမှာ username တစ်ခုထားပြီး ပြန်ပြီး profile ဖြည့်ပါ။',
+      'Telegram username မရှိသေးပါ။ Settings ထဲမှာ username သတ်မှတ်ပြီးနောက် profile ကို ပြန်ဖြည့်ပေးပါ။',
       mainMenuKeyboard()
     );
     resetProfileSession(ctx);
@@ -374,23 +374,23 @@ async function finishProfileFlow(ctx) {
   );
 
   resetProfileSession(ctx);
-  await ctx.reply('✅ Profile သိမ်းပြီးပါပြီ။', mainMenuKeyboard());
+  await ctx.reply('✅ သင့် Profile ကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။', mainMenuKeyboard());
   await showMyProfile(ctx);
 }
 
 async function sendHelp(ctx) {
   await ctx.reply(
     [
-      'ℹ️ <b>Help</b>',
+      'ℹ️ <b>အကူအညီ</b>',
       '',
-      '• 📝 Fill My Info - profile ဖြည့်ရန်',
-      '• 👧 Girls List / 👦 Boys List - profile များကြည့်ရန်',
-      '• 👤 My Profile - ကိုယ့် profile ကြည့်ရန်',
-      '• ✏️ Edit Profile - profile ပြင်ရန်',
-      '• 🎲 Random Profile - random profile ကြည့်ရန်',
+      '• 📝 Profile ဖြည့်ရန် - သင့် profile အသစ်ပြုလုပ်ရန်',
+      '• 👧 Girls List / 👦 Boys List - တခြား user profile များကြည့်ရန်',
+      '• 👤 ကျွန်ုပ်၏ Profile - ကိုယ့် profile ကြည့်ရန်',
+      '• ✏️ Profile ပြင်ရန် - ကိုယ့် profile ပြင်ဆင်ရန်',
+      '• 🎲 ကျပန်း Profile ကြည့်ရန် - random profile ကြည့်ရန်',
       '',
-      'Admin commands:',
-      '• /admin - admin panel',
+      'Admin Commands:',
+      '• /admin - Admin panel ဖွင့်ရန်',
       '• /ban <telegramId>',
       '• /unban <telegramId>',
       '• /deleteprofile <telegramId>',
@@ -414,9 +414,9 @@ bot.use(async (ctx, next) => {
     if (ctx.updateType === 'message' || ctx.updateType === 'callback_query') {
       try {
         if (ctx.updateType === 'callback_query') {
-          await ctx.answerCbQuery('သင်သည် banned ဖြစ်ထားပါသည်။', { show_alert: true });
+          await ctx.answerCbQuery('သင်၏ အကောင့်ကို ပိတ်ထားပါသည်။', { show_alert: true });
         } else {
-          await ctx.reply('🚫 သင်သည် banned ဖြစ်ထားပါသည်။');
+          await ctx.reply('🚫 သင်၏ အကောင့်ကို ပိတ်ထားပါသည်။');
         }
       } catch (_) {}
     }
@@ -428,23 +428,23 @@ bot.use(async (ctx, next) => {
 
 bot.start(async (ctx) => {
   await ctx.reply(
-    '💘 Welcome to Relationship Bot\n\nProfile ဖြည့်ပြီး တခြား user profile တွေကို ကြည့်နိုင်ပါတယ်။',
+    '💘 Relationship Bot မှ ကြိုဆိုပါသည်။\n\nသင့် profile ကို ဖြည့်ပြီး တခြား user များ၏ profile ကို ကြည့်ရှုနိုင်ပါသည်။',
     mainMenuKeyboard()
   );
 });
 
 bot.command('help', sendHelp);
-bot.hears('ℹ️ Help', sendHelp);
+bot.hears('ℹ️ အကူအညီ', sendHelp);
 
-bot.hears('📝 Fill My Info', async (ctx) => startProfileFlow(ctx, false));
-bot.hears('✏️ Edit Profile', async (ctx) => startProfileFlow(ctx, true));
+bot.hears('📝 Profile ဖြည့်ရန်', async (ctx) => startProfileFlow(ctx, false));
+bot.hears('✏️ Profile ပြင်ရန်', async (ctx) => startProfileFlow(ctx, true));
 
-bot.hears('👤 My Profile', showMyProfile);
+bot.hears('👤 ကျွန်ုပ်၏ Profile', showMyProfile);
 
 bot.hears('👧 Girls List', async (ctx) => {
   const me = await getProfileByTelegramId(ctx.from.id);
   if (!me || !me.isProfileComplete) {
-    await ctx.reply('အရင်ဆုံး profile ဖြည့်ပါ။', mainMenuKeyboard());
+    await ctx.reply('အရင်ဆုံး သင့် profile ကို ဖြည့်ပေးပါ။', mainMenuKeyboard());
     return;
   }
   await showGenderList(ctx, 'female', 0);
@@ -453,16 +453,16 @@ bot.hears('👧 Girls List', async (ctx) => {
 bot.hears('👦 Boys List', async (ctx) => {
   const me = await getProfileByTelegramId(ctx.from.id);
   if (!me || !me.isProfileComplete) {
-    await ctx.reply('အရင်ဆုံး profile ဖြည့်ပါ။', mainMenuKeyboard());
+    await ctx.reply('အရင်ဆုံး သင့် profile ကို ဖြည့်ပေးပါ။', mainMenuKeyboard());
     return;
   }
   await showGenderList(ctx, 'male', 0);
 });
 
-bot.hears('🎲 Random Profile', async (ctx) => {
+bot.hears('🎲 ကျပန်း Profile ကြည့်ရန်', async (ctx) => {
   const me = await getProfileByTelegramId(ctx.from.id);
   if (!me || !me.isProfileComplete) {
-    await ctx.reply('အရင်ဆုံး profile ဖြည့်ပါ။', mainMenuKeyboard());
+    await ctx.reply('အရင်ဆုံး သင့် profile ကို ဖြည့်ပေးပါ။', mainMenuKeyboard());
     return;
   }
 
@@ -470,7 +470,7 @@ bot.hears('🎲 Random Profile', async (ctx) => {
   const gender = genders[Math.floor(Math.random() * genders.length)];
   const list = await getBrowseList(gender, ctx.from.id);
   if (!list.length) {
-    await ctx.reply('ကြည့်ရန် profile မရှိသေးပါ။', mainMenuKeyboard());
+    await ctx.reply('ကြည့်ရှုရန် profile မရှိသေးပါ။', mainMenuKeyboard());
     return;
   }
   const index = Math.floor(Math.random() * list.length);
@@ -479,7 +479,7 @@ bot.hears('🎲 Random Profile', async (ctx) => {
 
 bot.command('admin', async (ctx) => {
   if (!isAdmin(ctx.from.id)) {
-    await ctx.reply('ဒီ command ကို admin ပဲသုံးနိုင်ပါတယ်။');
+    await ctx.reply('ဒီ command ကို admin များသာ အသုံးပြုနိုင်ပါသည်။');
     return;
   }
 
@@ -498,11 +498,11 @@ bot.command('ban', async (ctx) => {
   const parts = ctx.message.text.split(/\s+/);
   const targetId = Number(parts[1]);
   if (!Number.isFinite(targetId)) {
-    await ctx.reply('Usage: /ban <telegramId>');
+    await ctx.reply('အသုံးပြုပုံ - /ban <telegramId>');
     return;
   }
   await User.findOneAndUpdate({ telegramId: targetId }, { $set: { isBanned: true, updatedAt: new Date() } });
-  await ctx.reply(`🚫 Banned: ${targetId}`);
+  await ctx.reply(`🚫 User ကို ban လုပ်ပြီးပါပြီ - ${targetId}`);
 });
 
 bot.command('unban', async (ctx) => {
@@ -510,11 +510,11 @@ bot.command('unban', async (ctx) => {
   const parts = ctx.message.text.split(/\s+/);
   const targetId = Number(parts[1]);
   if (!Number.isFinite(targetId)) {
-    await ctx.reply('Usage: /unban <telegramId>');
+    await ctx.reply('အသုံးပြုပုံ - /unban <telegramId>');
     return;
   }
   await User.findOneAndUpdate({ telegramId: targetId }, { $set: { isBanned: false, updatedAt: new Date() } });
-  await ctx.reply(`✅ Unbanned: ${targetId}`);
+  await ctx.reply(`✅ User ကို unban လုပ်ပြီးပါပြီ - ${targetId}`);
 });
 
 bot.command('deleteprofile', async (ctx) => {
@@ -522,21 +522,21 @@ bot.command('deleteprofile', async (ctx) => {
   const parts = ctx.message.text.split(/\s+/);
   const targetId = Number(parts[1]);
   if (!Number.isFinite(targetId)) {
-    await ctx.reply('Usage: /deleteprofile <telegramId>');
+    await ctx.reply('အသုံးပြုပုံ - /deleteprofile <telegramId>');
     return;
   }
 
   await Reaction.deleteMany({ $or: [{ fromUserId: targetId }, { toUserId: targetId }] });
   await Report.deleteMany({ $or: [{ reporterId: targetId }, { targetUserId: targetId }] });
   await User.deleteOne({ telegramId: targetId });
-  await ctx.reply(`🗑 Profile deleted: ${targetId}`);
+  await ctx.reply(`🗑 Profile ကို ဖျက်ပြီးပါပြီ - ${targetId}`);
 });
 
 bot.command('broadcast', async (ctx) => {
   if (!isAdmin(ctx.from.id)) return;
   const text = ctx.message.text.replace(/^\/broadcast\s*/i, '').trim();
   if (!text) {
-    await ctx.reply('Usage: /broadcast your message');
+    await ctx.reply('အသုံးပြုပုံ - /broadcast your message');
     return;
   }
 
@@ -553,7 +553,7 @@ bot.command('broadcast', async (ctx) => {
     }
   }
 
-  await ctx.reply(`Broadcast done.\n✅ Success: ${ok}\n❌ Failed: ${fail}`);
+  await ctx.reply(`Broadcast ပြီးပါပြီ။\n✅ Success: ${ok}\n❌ Failed: ${fail}`);
 });
 
 bot.action('main:menu', async (ctx) => {
@@ -561,7 +561,7 @@ bot.action('main:menu', async (ctx) => {
   try {
     await ctx.deleteMessage();
   } catch (_) {}
-  await ctx.reply('🏠 Main menu', mainMenuKeyboard());
+  await ctx.reply('🏠 Main Menu', mainMenuKeyboard());
 });
 
 bot.action('edit:profile', async (ctx) => {
@@ -576,7 +576,10 @@ bot.action('toggle:hide', async (ctx) => {
   me.isHidden = !me.isHidden;
   me.updatedAt = new Date();
   await me.save();
-  await ctx.reply(me.isHidden ? '🙈 သင့် profile ကို hide လုပ်ပြီးပါပြီ။' : '👁 သင့် profile ကို show လုပ်ပြီးပါပြီ။', mainMenuKeyboard());
+  await ctx.reply(
+    me.isHidden ? '🙈 သင့် profile ကို ဖျောက်ထားလိုက်ပါပြီ။' : '👁 သင့် profile ကို ပြန်ပြလိုက်ပါပြီ။',
+    mainMenuKeyboard()
+  );
 });
 
 bot.action(/^nav:(male|female):(\d+)$/, async (ctx) => {
@@ -614,7 +617,7 @@ bot.action(/^rx:(like|love|laugh):(\d+):(male|female):(\d+)$/, async (ctx) => {
   } else if (existing.type === type) {
     await Reaction.deleteOne({ _id: existing._id });
     targetUser.reactions[type] = Math.max(0, (targetUser.reactions[type] || 0) - 1);
-    message = `${reactionEmoji(type)} reaction ပြန်ဖျက်ပြီးပါပြီ။`;
+    message = `${reactionEmoji(type)} reaction ကို ပြန်ဖျက်ပြီးပါပြီ။`;
   } else {
     targetUser.reactions[existing.type] = Math.max(0, (targetUser.reactions[existing.type] || 0) - 1);
     existing.type = type;
@@ -622,7 +625,7 @@ bot.action(/^rx:(like|love|laugh):(\d+):(male|female):(\d+)$/, async (ctx) => {
     await existing.save();
     targetUser.reactions[type] += 1;
     notifyLove = type === 'love';
-    message = `${reactionEmoji(type)} reaction ပြောင်းပြီးပါပြီ။`;
+    message = `${reactionEmoji(type)} reaction ကို ပြောင်းလဲပြီးပါပြီ။`;
   }
 
   targetUser.updatedAt = new Date();
@@ -632,7 +635,7 @@ bot.action(/^rx:(like|love|laugh):(\d+):(male|female):(\d+)$/, async (ctx) => {
     try {
       await bot.telegram.sendMessage(
         targetUser.telegramId,
-        `❤ သင့် profile ကို ❤ reaction အသစ်ရရှိထားပါတယ်။\nစုစုပေါင်း ❤ : ${targetUser.reactions.love}`
+        `❤ သင့် profile တွင် ❤ reaction အသစ်တစ်ခု ရရှိထားပါသည်။\nစုစုပေါင်း ❤ : ${targetUser.reactions.love}`
       );
     } catch (_) {}
   }
@@ -655,7 +658,7 @@ bot.action(/^report:(\d+):(male|female):(\d+)$/, async (ctx) => {
   await Report.findOneAndUpdate(
     { reporterId: fromId, targetUserId: targetId },
     {
-      $set: { reason: 'fake profile', status: 'pending', updatedAt: new Date() },
+      $set: { reason: 'အတုအယောင် profile', status: 'pending', updatedAt: new Date() },
       $setOnInsert: { createdAt: new Date() },
     },
     { upsert: true, new: true }
@@ -681,11 +684,11 @@ bot.action('admin:count', async (ctx) => {
   await ctx.reply(
     [
       '📊 Admin Stats',
-      `Total Users: ${total}`,
-      `Completed Profiles: ${completed}`,
+      `စုစုပေါင်း Users: ${total}`,
+      `Profile ဖြည့်ပြီးသူ: ${completed}`,
       `Boys: ${male}`,
       `Girls: ${female}`,
-      `Banned: ${banned}`,
+      `Banned Users: ${banned}`,
       `Pending Reports: ${pendingReports}`,
     ].join('\n')
   );
@@ -694,7 +697,7 @@ bot.action('admin:count', async (ctx) => {
 bot.action('admin:broadcast:help', async (ctx) => {
   if (!isAdmin(ctx.from.id)) return;
   await ctx.answerCbQuery();
-  await ctx.reply('📢 Broadcast usage:\n/broadcast your message here');
+  await ctx.reply('📢 Broadcast အသုံးပြုပုံ\n/broadcast your message here');
 });
 
 bot.action(/^admin:reports:(\d+)$/, async (ctx) => {
@@ -703,7 +706,7 @@ bot.action(/^admin:reports:(\d+)$/, async (ctx) => {
   const reports = await Report.find({ status: 'pending' }).sort({ createdAt: -1 }).lean();
 
   if (!reports.length) {
-    await ctx.answerCbQuery('Pending reports မရှိပါ။');
+    await ctx.answerCbQuery('Pending reports မရှိသေးပါ။');
     return;
   }
 
@@ -749,7 +752,7 @@ bot.action(/^admin:ignorereport:([a-f0-9]{24})$/i, async (ctx) => {
   const reportId = ctx.match[1];
   await Report.findByIdAndUpdate(reportId, { $set: { status: 'ignored', updatedAt: new Date() } });
   await ctx.answerCbQuery('Report ignored');
-  await ctx.reply('✅ Report ignored');
+  await ctx.reply('✅ Report ကို ignore လုပ်ပြီးပါပြီ။');
 });
 
 bot.action(/^admin:banreport:(\d+)$/, async (ctx) => {
@@ -758,7 +761,7 @@ bot.action(/^admin:banreport:(\d+)$/, async (ctx) => {
   await User.findOneAndUpdate({ telegramId: targetId }, { $set: { isBanned: true, updatedAt: new Date() } });
   await Report.updateMany({ targetUserId: targetId, status: 'pending' }, { $set: { status: 'resolved', updatedAt: new Date() } });
   await ctx.answerCbQuery('User banned');
-  await ctx.reply(`🚫 User banned: ${targetId}`);
+  await ctx.reply(`🚫 User ကို ban လုပ်ပြီးပါပြီ - ${targetId}`);
 });
 
 bot.action(/^admin:delreport:(\d+)$/, async (ctx) => {
@@ -768,7 +771,7 @@ bot.action(/^admin:delreport:(\d+)$/, async (ctx) => {
   await Report.deleteMany({ $or: [{ reporterId: targetId }, { targetUserId: targetId }] });
   await User.deleteOne({ telegramId: targetId });
   await ctx.answerCbQuery('Profile deleted');
-  await ctx.reply(`🗑 Deleted profile: ${targetId}`);
+  await ctx.reply(`🗑 Profile ကို ဖျက်ပြီးပါပြီ - ${targetId}`);
 });
 
 bot.action(/^adminban:(\d+)$/, async (ctx) => {
@@ -795,46 +798,46 @@ bot.on('text', async (ctx, next) => {
 
   if (flow.step === 'name') {
     if (text.length < 2 || text.length > 40) {
-      await ctx.reply('နာမည်ကို စာလုံးရေ 2 မှ 40 လုံးအတွင်း ပို့ပါ။');
+      await ctx.reply('နာမည်ကို စာလုံး 2 လုံးမှ 40 လုံးအတွင်း ပို့ပေးပါ။');
       return;
     }
     flow.data.profileName = safeTextLength(text, 40);
     flow.step = 'gender';
-    await ctx.reply('ကျား/မ ရွေးပါ။', Markup.keyboard([['ကျား', 'မ']]).oneTime().resize());
+    await ctx.reply('ကျား / မ ရွေးပေးပါ။', Markup.keyboard([['ကျား', 'မ']]).oneTime().resize());
     return;
   }
 
   if (flow.step === 'gender') {
     if (text !== 'ကျား' && text !== 'မ') {
-      await ctx.reply('ကျား သို့မဟုတ် မ ကိုသာရွေးပါ။', Markup.keyboard([['ကျား', 'မ']]).oneTime().resize());
+      await ctx.reply('ကျား သို့မဟုတ် မ ကိုသာ ရွေးပေးပါ။', Markup.keyboard([['ကျား', 'မ']]).oneTime().resize());
       return;
     }
     flow.data.gender = text === 'ကျား' ? 'male' : 'female';
     flow.step = 'age';
-    await ctx.reply('အသက်ပို့ပါ။ (10 မှ 40 အတွင်း)');
+    await ctx.reply('အသက်ကို ပို့ပေးပါ။ (10 မှ 40 အတွင်း)');
     return;
   }
 
   if (flow.step === 'age') {
     const age = Number(text);
     if (!Number.isFinite(age) || age < 10 || age > 40) {
-      await ctx.reply('အသက်ကို 10 မှ 40 အတွင်းနံပါတ်ဖြင့်ပို့ပါ။');
+      await ctx.reply('အသက်ကို 10 မှ 40 အတွင်း ဂဏန်းဖြင့် ပို့ပေးပါ။');
       return;
     }
     flow.data.age = age;
     flow.step = 'hobby';
-    await ctx.reply('သင့် ဝါသနာပို့ပါ။ (အများဆုံး စာလုံးအရေအတွက် 200 လုံး)');
+    await ctx.reply('သင့်ဝါသနာကို ပို့ပေးပါ။ (အများဆုံး စာလုံး 200 လုံး)');
     return;
   }
 
   if (flow.step === 'hobby') {
     if (text.length < 2 || text.length > 200) {
-      await ctx.reply('ဝါသနာကို စာလုံးအရေအတွက် 2 မှ 200 လုံးအတွင်းပို့ပါ။');
+      await ctx.reply('ဝါသနာကို စာလုံး 2 လုံးမှ 200 လုံးအတွင်း ပို့ပေးပါ။');
       return;
     }
     flow.data.hobby = safeTextLength(text, 200);
     flow.step = 'photo';
-    await ctx.reply('နောက်တစ်ဆင့်အဖြစ် ဓာတ်ပုံတစ်ပုံပို့ပါ။', Markup.removeKeyboard());
+    await ctx.reply('နောက်ဆုံးအဆင့်အနေနဲ့ သင့်ဓာတ်ပုံတစ်ပုံ ပို့ပေးပါ။', Markup.removeKeyboard());
     return;
   }
 
@@ -848,7 +851,7 @@ bot.on('photo', async (ctx, next) => {
   const photos = ctx.message.photo || [];
   const best = photos[photos.length - 1];
   if (!best?.file_id) {
-    await ctx.reply('ဓာတ်ပုံတစ်ပုံ ထပ်ပို့ပါ။');
+    await ctx.reply('ဓာတ်ပုံတစ်ပုံ ထပ်ပို့ပေးပါ။');
     return;
   }
 
@@ -859,7 +862,7 @@ bot.on('photo', async (ctx, next) => {
 bot.on('message', async (ctx, next) => {
   const flow = ctx.session.profileFlow;
   if (flow?.active && flow.step === 'photo') {
-    await ctx.reply('ဓာတ်ပုံပို့ရမယ်ဗျ။');
+    await ctx.reply('ဒီအဆင့်မှာ ဓာတ်ပုံပဲ ပို့ပေးရပါမယ်။');
     return;
   }
   return next();
@@ -868,7 +871,7 @@ bot.on('message', async (ctx, next) => {
 bot.catch(async (err, ctx) => {
   console.error('BOT_ERROR:', err);
   try {
-    await ctx.reply('❌ Error တစ်ခုဖြစ်သွားပါတယ်။ နောက်တစ်ခါပြန်စမ်းကြည့်ပါ။', mainMenuKeyboard());
+    await ctx.reply('❌ Error တစ်ခု ဖြစ်သွားပါတယ်။ ခဏနေရင် ပြန်စမ်းကြည့်ပါ။', mainMenuKeyboard());
   } catch (_) {}
 });
 
