@@ -90,9 +90,9 @@ function isAdmin(id) {
 
 function mainMenuKeyboard() {
   return Markup.keyboard([
-    ['📝 Fill My Info', '👤 My Profile'],
+    ['📝 သင့်အချက်အလက်ဖြည့်ပါ', '👤 ကျွန်ုပ်၏ Profile'],
     ['👧 Girls List', '👦 Boys List'],
-    ['✏️ Edit Profile', '🎲 Random Profile'],
+    ['✏️ Edit Profile', '🎲 ကျပန်း Profile ရှာ'],
     ['ℹ️ Help'],
   ]).resize();
 }
@@ -172,10 +172,10 @@ function buildProfileCaption(user, index, total) {
   return [
     '💘 <b>Relationship Profile</b>',
     '',
-    `👤 <b>Name:</b> ${escapeHtml(user.profileName)}`,
-    `⚧ <b>Gender:</b> ${escapeHtml(genderLabel(user.gender))}`,
-    `🎂 <b>Age:</b> ${escapeHtml(user.age)}`,
-    `🎯 <b>Hobby:</b> ${escapeHtml(user.hobby)}`,
+    `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName)}`,
+    `⚧ <b>ကျား/မ:</b> ${escapeHtml(genderLabel(user.gender))}`,
+    `🎂 <b>အသက်:</b> ${escapeHtml(user.age)}`,
+    `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby)}`,
     `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'No username'}`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
@@ -294,10 +294,10 @@ async function showMyProfile(ctx) {
   const caption = [
     '👤 <b>My Profile</b>',
     '',
-    `👤 <b>Name:</b> ${escapeHtml(user.profileName)}`,
-    `⚧ <b>Gender:</b> ${escapeHtml(genderLabel(user.gender))}`,
-    `🎂 <b>Age:</b> ${escapeHtml(user.age)}`,
-    `🎯 <b>Hobby:</b> ${escapeHtml(user.hobby)}`,
+    `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName)}`,
+    `⚧ <b>ကျား/မ:</b> ${escapeHtml(genderLabel(user.gender))}`,
+    `🎂 <b>အသက်:</b> ${escapeHtml(user.age)}`,
+    `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby)}`,
     `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'No username'}`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
@@ -795,12 +795,12 @@ bot.on('text', async (ctx, next) => {
 
   if (flow.step === 'name') {
     if (text.length < 2 || text.length > 40) {
-      await ctx.reply('နာမည်ကို 2 မှ 40 လုံးအတွင်း ပို့ပါ။');
+      await ctx.reply('နာမည်ကို စာလုံးရေ 2 မှ 40 လုံးအတွင်း ပို့ပါ။');
       return;
     }
     flow.data.profileName = safeTextLength(text, 40);
     flow.step = 'gender';
-    await ctx.reply('Gender ရွေးပါ။', Markup.keyboard([['ကျား', 'မ']]).oneTime().resize());
+    await ctx.reply('ကျား/မ ရွေးပါ။', Markup.keyboard([['ကျား', 'မ']]).oneTime().resize());
     return;
   }
 
@@ -811,25 +811,25 @@ bot.on('text', async (ctx, next) => {
     }
     flow.data.gender = text === 'ကျား' ? 'male' : 'female';
     flow.step = 'age';
-    await ctx.reply('အသက်ပို့ပါ။ (18 မှ 80 အတွင်း)');
+    await ctx.reply('အသက်ပို့ပါ။ (10 မှ 40 အတွင်း)');
     return;
   }
 
   if (flow.step === 'age') {
     const age = Number(text);
-    if (!Number.isFinite(age) || age < 18 || age > 80) {
-      await ctx.reply('အသက်ကို 18 မှ 80 အတွင်းနံပါတ်ဖြင့်ပို့ပါ။');
+    if (!Number.isFinite(age) || age < 10 || age > 40) {
+      await ctx.reply('အသက်ကို 10 မှ 40 အတွင်းနံပါတ်ဖြင့်ပို့ပါ။');
       return;
     }
     flow.data.age = age;
     flow.step = 'hobby';
-    await ctx.reply('ဝါသနာပို့ပါ။ (အများဆုံး 200 လုံး)');
+    await ctx.reply('သင့် ဝါသနာပို့ပါ။ (အများဆုံး စာလုံးအရေအတွက် 200 လုံး)');
     return;
   }
 
   if (flow.step === 'hobby') {
     if (text.length < 2 || text.length > 200) {
-      await ctx.reply('ဝါသနာကို 2 မှ 200 လုံးအတွင်းပို့ပါ။');
+      await ctx.reply('ဝါသနာကို စာလုံးအရေအတွက် 2 မှ 200 လုံးအတွင်းပို့ပါ။');
       return;
     }
     flow.data.hobby = safeTextLength(text, 200);
