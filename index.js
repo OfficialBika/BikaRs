@@ -206,6 +206,9 @@ function buildProfileCaption(user, index, total) {
 }
 
 function buildProfileButtons(user, gender, index, total, isAdminView = false) {
+  const prevIndex = total > 0 ? (index - 1 + total) % total : 0;
+  const nextIndex = total > 0 ? (index + 1) % total : 0;
+
   const rows = [
     [
       Markup.button.callback(`👍 ${user.reactions?.like || 0}`, `rx:like:${user.telegramId}:${gender}:${index}`),
@@ -215,8 +218,8 @@ function buildProfileButtons(user, gender, index, total, isAdminView = false) {
     [Markup.button.url('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user))],
     [Markup.button.callback('🚨 Report', `report:${user.telegramId}:${gender}:${index}`)],
     [
-      Markup.button.callback('⬅️ Back', `nav:${gender}:${Math.max(index - 1, 0)}`),
-      Markup.button.callback('➡️ Next', `nav:${gender}:${Math.min(index + 1, Math.max(total - 1, 0))}`),
+      Markup.button.callback('⬅️ Back', `nav:${gender}:${prevIndex}`),
+      Markup.button.callback('➡️ Next', `nav:${gender}:${nextIndex}`),
     ],
     [Markup.button.callback('🏠 Main Menu', 'main:menu')],
   ];
@@ -423,10 +426,10 @@ async function sendHelp(ctx) {
       '',
       'Admin Commands:',
       '• /admin - Admin panel ဖွင့်ရန်',
-      '• /ban <telegramId>',
-      '• /unban <telegramId>',
-      '• /deleteprofile <telegramId>',
-      '• /broadcast <message>',
+      '• /ban (telegramId)',
+      '• /unban (telegramId)',
+      '• /deleteprofile (telegramId)',
+      '• /broadcast (your message)',
     ].join('\n'),
     {
       parse_mode: 'HTML',
@@ -876,14 +879,14 @@ bot.on('text', async (ctx, next) => {
     }
     flow.data.relationshipStatus = text;
     flow.step = 'age';
-    await ctx.reply('အသက်ကို ပို့ပေးပါ။ (18 မှ 40 အတွင်း)', Markup.removeKeyboard());
+    await ctx.reply('အသက်ကို ပို့ပေးပါ။ (12 မှ 40 အတွင်း)', Markup.removeKeyboard());
     return;
   }
 
   if (flow.step === 'age') {
     const age = Number(text);
-    if (!Number.isFinite(age) || age < 18 || age > 40) {
-      await ctx.reply('အသက်ကို 18 မှ 40 အတွင်း ဂဏန်းဖြင့် ပို့ပေးပါ။');
+    if (!Number.isFinite(age) || age < 12 || age > 40) {
+      await ctx.reply('အသက်ကို 12 မှ 40 အတွင်း ဂဏန်းဖြင့် ပို့ပေးပါ။');
       return;
     }
     flow.data.age = age;
