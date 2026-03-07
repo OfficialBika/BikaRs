@@ -182,7 +182,7 @@ async function getBrowseList(gender, viewerId) {
     isHidden: false,
     telegramId: { $ne: Number(viewerId) },
   })
-    .sort({ updatedAt: -1, createdAt: -1 })
+    .sort({ createdAt: 1, telegramId: 1 })
     .lean();
 }
 
@@ -304,8 +304,9 @@ async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) 
   }
 
   let index = Number(startIndex) || 0;
-  if (index < 0) index = 0;
-  if (index >= list.length) index = list.length - 1;
+if (list.length > 0) {
+  index = ((index % list.length) + list.length) % list.length;
+}
 
   await sendOrEditProfileCard(ctx, list[index], gender, index, list.length, { isAdminView });
 }
