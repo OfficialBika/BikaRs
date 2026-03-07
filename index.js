@@ -645,13 +645,20 @@ bot.action(/^rx:(like|love|laugh):(\d+):(male|female):(\d+)$/, async (ctx) => {
   }
 
   const existing = await Reaction.findOne({ fromUserId: fromId, toUserId: targetId });
-  let notifyLove = false;
+  let notifyReactionType = '';
   let message = '';
 
   if (!existing) {
-    await Reaction.create({ fromUserId: fromId, toUserId: targetId, type, createdAt: new Date(), updatedAt: new Date() });
+    await Reaction.create({
+      fromUserId: fromId,
+      toUserId: targetId,
+      type,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
     targetUser.reactions[type] += 1;
-    notifyLove = type === 'love';
+    notifyReactionType = type;
     message = `${reactionEmoji(type)} reaction ပေးပြီးပါပြီ။`;
   } else if (existing.type === type) {
     await Reaction.deleteOne({ _id: existing._id });
@@ -662,19 +669,23 @@ bot.action(/^rx:(like|love|laugh):(\d+):(male|female):(\d+)$/, async (ctx) => {
     existing.type = type;
     existing.updatedAt = new Date();
     await existing.save();
+
     targetUser.reactions[type] += 1;
-    notifyLove = type === 'love';
+    notifyReactionType = type;
     message = `${reactionEmoji(type)} reaction ကို ပြောင်းလဲပြီးပါပြီ။`;
   }
 
   targetUser.updatedAt = new Date();
   await targetUser.save();
 
-  if (notifyLove) {
+  if (notifyReactionType) {
     try {
+      const emoji = reactionEmoji(notifyReactionType);
+      const totalCount = targetUser.reactions[notifyReactionType] || 0;
+
       await bot.telegram.sendMessage(
         targetUser.telegramId,
-        `❤ သင့် profile တွင် ❤ reaction အသစ်တစ်ခု ရရှိထားပါသည်။\nစုစုပေါင်း ❤ : ${targetUser.reactions.love}`
+        `သင့် profile တွင် ${emoji} reaction အသစ်တစ်ခု ရရှိထားပါသည်။\nစုစုပေါင်း ${emoji} : ${totalCount}`
       );
     } catch (_) {}
   }
