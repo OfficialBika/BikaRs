@@ -428,7 +428,10 @@ async function sendHelp(ctx) {
       '• /deleteprofile <telegramId>',
       '• /broadcast <message>',
     ].join('\n'),
-    { parse_mode: 'HTML', ...mainMenuKeyboard() }
+    {
+      parse_mode: 'HTML',
+      reply_markup: mainMenuKeyboard().reply_markup,
+    }
   );
 }
 
