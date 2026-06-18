@@ -5,6 +5,12 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 ## Features
 
 - Profile create/edit flow
+- Profile photo/video media support, 1 to 3 items per user
+- MongoDB stores media metadata only: `fileId`, `fileUniqueId`, backup channel id, and backup message id
+- Cupid Database channel backup support
+- Backup channel post caption includes clickable user mention
+- Add new media without deleting old media
+- Replace old media with new media and create new backup posts marked as `Cupid Media Post Update`
 - Girls list / Boys list / Random profile
 - Like, love, laugh reactions
 - Reaction notification
@@ -42,7 +48,8 @@ BikaRs/
 │   └── admin.js
 └── utils/
     ├── escapeHtml.js
-    └── keyboards.js
+    ├── keyboards.js
+    └── media.js
 ```
 
 ## ENV Setup
@@ -55,9 +62,43 @@ MONGODB_URI=your_mongodb_uri
 WEBHOOK_URL=https://your-app-name.onrender.com
 PORT=10000
 ADMIN_IDS=123456789,987654321
+CUPID_DATABASE_CHANNEL_ID=-1004378314304
+MAX_PROFILE_MEDIA=3
 ```
 
 `WEBHOOK_URL` must be the base HTTPS URL only. Do not add `/webhook` manually.
+
+## Cupid Database Channel Setup
+
+1. Open Telegram channel `-1004378314304` or your own backup channel.
+2. Add the bot as channel admin.
+3. Give the bot permission to post messages.
+4. Put the channel id in `CUPID_DATABASE_CHANNEL_ID`.
+
+When a user uploads photo/video media, the bot posts a backup copy to this channel. MongoDB only stores metadata, not real media files.
+
+## Media Flow
+
+Profile creation:
+
+```txt
+User fills profile info
+User sends photo/video 1-3 items
+Bot posts each media to Cupid Database channel
+Bot stores fileId + backup message id in MongoDB
+User presses Done
+Profile is saved
+```
+
+Media edit menu:
+
+```txt
+🖼 ပုံထည့်/ပြင်မယ်
+├── ➕ ပုံအသစ်ထပ်ထည့်မယ်
+└── ♻️ ပုံအစားထိုးမယ်
+```
+
+Replace mode posts new backup messages with the caption title `Cupid Media Post Update`, then MongoDB is updated with the new `fileId` and `backupMessageId` values.
 
 ## Local Run
 
@@ -114,10 +155,6 @@ Admin commands:
 /deleteprofile <telegramId>
 /broadcast <message>
 ```
-
-## Notes
-
-This zip keeps the original bot behavior but splits the single `index.js` into clean modules for future updates.
 
 ## Button Styles
 
