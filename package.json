@@ -1,10 +1,11 @@
 {
-  "name": "relationship-profile-bot",
+  "name": "cupid-profile-bot",
   "version": "1.0.0",
-  "description": "Telegram relationship profile bot with MongoDB, Render webhook, reactions, reports, and admin tools.",
+  "description": "Telegram Cupid profile bot with MongoDB, Render webhook, reactions, reports, privacy tools, and admin tools.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "check": "node --check index.js"
   },
   "engines": {
     "node": ">=18"
