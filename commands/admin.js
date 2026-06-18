@@ -1,9 +1,9 @@
-const { Markup } = require('telegraf');
 const User = require('../models/User');
 const Reaction = require('../models/Reaction');
 const Report = require('../models/Report');
 const { isAdmin } = require('../middlewares/auth');
 const { escapeHtml } = require('../utils/escapeHtml');
+const { BUTTON_STYLE, callbackButton, inlineKeyboard } = require('../utils/keyboards');
 
 function registerAdminCommands(bot) {
   bot.command('admin', async (ctx) => {
@@ -14,10 +14,10 @@ function registerAdminCommands(bot) {
 
     await ctx.reply('🛠 <b>Admin Panel</b>', {
       parse_mode: 'HTML',
-      reply_markup: Markup.inlineKeyboard([
-        [Markup.button.callback('📊 User Count', 'admin:count')],
-        [Markup.button.callback('🚨 Reported Profiles', 'admin:reports:0')],
-        [Markup.button.callback('📢 Broadcast Guide', 'admin:broadcast:help')],
+      reply_markup: inlineKeyboard([
+        [callbackButton('📊 User Count', 'admin:count', BUTTON_STYLE.PRIMARY)],
+        [callbackButton('🚨 Reported Profiles', 'admin:reports:0', BUTTON_STYLE.DANGER)],
+        [callbackButton('📢 Broadcast Guide', 'admin:broadcast:help', BUTTON_STYLE.PRIMARY)],
       ]).reply_markup,
     });
   });
@@ -144,16 +144,16 @@ function registerAdminCommands(bot) {
       `Status: ${escapeHtml(report.status)}`,
     ].join('\n');
 
-    const keyboard = Markup.inlineKeyboard([
+    const keyboard = inlineKeyboard([
       [
-        Markup.button.callback('⬅️ Prev', `admin:reports:${Math.max(currentIndex - 1, 0)}`),
-        Markup.button.callback('➡️ Next', `admin:reports:${Math.min(currentIndex + 1, reports.length - 1)}`),
+        callbackButton('⬅️ Prev', `admin:reports:${Math.max(currentIndex - 1, 0)}`, BUTTON_STYLE.PRIMARY),
+        callbackButton('➡️ Next', `admin:reports:${Math.min(currentIndex + 1, reports.length - 1)}`, BUTTON_STYLE.PRIMARY),
       ],
       [
-        Markup.button.callback('🚫 Ban Target', `admin:banreport:${report.targetUserId}`),
-        Markup.button.callback('🗑 Delete Target', `admin:delreport:${report.targetUserId}`),
+        callbackButton('🚫 Ban Target', `admin:banreport:${report.targetUserId}`, BUTTON_STYLE.DANGER),
+        callbackButton('🗑 Delete Target', `admin:delreport:${report.targetUserId}`, BUTTON_STYLE.DANGER),
       ],
-      [Markup.button.callback('✅ Ignore Report', `admin:ignorereport:${report._id}`)],
+      [callbackButton('✅ Ignore Report', `admin:ignorereport:${report._id}`, BUTTON_STYLE.SUCCESS)],
     ]);
 
     await ctx.answerCbQuery();

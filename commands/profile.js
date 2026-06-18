@@ -4,6 +4,11 @@ const { ALLOWED_STATUSES } = require('../config/env');
 const { requirePrivateChat } = require('../middlewares/privateOnly');
 const { escapeHtml, safeTextLength } = require('../utils/escapeHtml');
 const {
+  BUTTON_STYLE,
+  callbackButton,
+  inlineKeyboard,
+  replyButton,
+  replyKeyboard,
   mainMenuKeyboard,
   genderLabel,
   buildProfileCaption,
@@ -102,8 +107,8 @@ async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) 
       await ctx.answerCbQuery();
       try {
         await ctx.editMessageText(text, {
-          reply_markup: Markup.inlineKeyboard([
-            [Markup.button.callback('🏠 Main Menu', 'main:menu')],
+          reply_markup: inlineKeyboard([
+            [callbackButton('🏠 Main Menu', 'main:menu', BUTTON_STYLE.PRIMARY)],
           ]).reply_markup,
         });
         return;
@@ -149,9 +154,9 @@ async function showMyProfile(ctx) {
   await ctx.replyWithPhoto(user.photoFileId, {
     caption,
     parse_mode: 'HTML',
-    reply_markup: Markup.inlineKeyboard([
-      [Markup.button.callback('✏️ Profile ပြင်ရန်', 'edit:profile')],
-      [Markup.button.callback(user.isHidden ? '👁 Profile ပြန်ပြရန်' : '🙈 Profile ဖျောက်ရန်', 'toggle:hide')],
+    reply_markup: inlineKeyboard([
+      [callbackButton('✏️ Profile ပြင်ရန်', 'edit:profile', BUTTON_STYLE.PRIMARY)],
+      [callbackButton(user.isHidden ? '👁 Profile ပြန်ပြရန်' : '🙈 Profile ဖျောက်ရန်', 'toggle:hide', user.isHidden ? BUTTON_STYLE.SUCCESS : BUTTON_STYLE.DANGER)],
     ]).reply_markup,
   });
 }
@@ -266,25 +271,31 @@ function registerProfileCommands(bot) {
       }
       flow.data.profileName = safeTextLength(text, 40);
       flow.step = 'gender';
-      await ctx.reply('ကျား / မ ရွေးပေးပါ။', Markup.keyboard([['ကျား', 'မ']]).oneTime().resize());
+      await ctx.reply(
+        'ကျား / မ ရွေးပေးပါ။',
+        replyKeyboard([[replyButton('ကျား', BUTTON_STYLE.PRIMARY), replyButton('မ', BUTTON_STYLE.PRIMARY)]], { oneTime: true })
+      );
       return;
     }
 
     if (flow.step === 'gender') {
       if (text !== 'ကျား' && text !== 'မ') {
-        await ctx.reply('ကျား သို့မဟုတ် မ ကိုသာ ရွေးပေးပါ။', Markup.keyboard([['ကျား', 'မ']]).oneTime().resize());
+        await ctx.reply(
+        'ကျား သို့မဟုတ် မ ကိုသာ ရွေးပေးပါ။',
+        replyKeyboard([[replyButton('ကျား', BUTTON_STYLE.PRIMARY), replyButton('မ', BUTTON_STYLE.PRIMARY)]], { oneTime: true })
+      );
         return;
       }
       flow.data.gender = text === 'ကျား' ? 'male' : 'female';
       flow.step = 'relationshipStatus';
       await ctx.reply(
         'လက်ရှိအခြေအနေကို ရွေးပေးပါ။',
-        Markup.keyboard([
-          ['in relationship', 'single'],
-          ['ကြေကွဲလူငယ်', 'စော်မရှိ'],
-          ['ဘဲမရှိ', 'လင်ရှိတယ်'],
-          ['မယားရှိတယ်'],
-        ]).oneTime().resize()
+        replyKeyboard([
+          [replyButton('in relationship', BUTTON_STYLE.SUCCESS), replyButton('single', BUTTON_STYLE.PRIMARY)],
+          [replyButton('ကြေကွဲလူငယ်', BUTTON_STYLE.PRIMARY), replyButton('စော်မရှိ', BUTTON_STYLE.PRIMARY)],
+          [replyButton('ဘဲမရှိ', BUTTON_STYLE.PRIMARY), replyButton('လင်ရှိတယ်', BUTTON_STYLE.SUCCESS)],
+          [replyButton('မယားရှိတယ်', BUTTON_STYLE.SUCCESS)],
+        ], { oneTime: true })
       );
       return;
     }
@@ -293,12 +304,12 @@ function registerProfileCommands(bot) {
       if (!ALLOWED_STATUSES.includes(text)) {
         await ctx.reply(
           'အောက်ကထဲက တစ်ခုကိုပဲ ရွေးပေးပါ။',
-          Markup.keyboard([
-            ['in relationship', 'single'],
-            ['ကြေကွဲလူငယ်', 'စော်မရှိ'],
-            ['ဘဲမရှိ', 'လင်ရှိတယ်'],
-            ['မယားရှိတယ်'],
-          ]).oneTime().resize()
+          replyKeyboard([
+            [replyButton('in relationship', BUTTON_STYLE.SUCCESS), replyButton('single', BUTTON_STYLE.PRIMARY)],
+            [replyButton('ကြေကွဲလူငယ်', BUTTON_STYLE.PRIMARY), replyButton('စော်မရှိ', BUTTON_STYLE.PRIMARY)],
+            [replyButton('ဘဲမရှိ', BUTTON_STYLE.PRIMARY), replyButton('လင်ရှိတယ်', BUTTON_STYLE.SUCCESS)],
+            [replyButton('မယားရှိတယ်', BUTTON_STYLE.SUCCESS)],
+          ], { oneTime: true })
         );
         return;
       }
