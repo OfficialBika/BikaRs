@@ -1,6 +1,6 @@
 const { Markup } = require('telegraf');
 const User = require('../models/User');
-const { ALLOWED_STATUSES } = require('../config/env');
+const { ALLOWED_STATUSES, MAX_PROFILE_MEDIA } = require('../config/env');
 const { requirePrivateChat } = require('../middlewares/privateOnly');
 const { escapeHtml, safeTextLength } = require('../utils/escapeHtml');
 const {
@@ -14,6 +14,14 @@ const {
   buildProfileCaption,
   buildProfileButtons,
 } = require('../utils/keyboards');
+const {
+  extractMediaFromMessage,
+  backupMediaToChannel,
+  buildMediaMetadata,
+  normalizeProfileMedia,
+  sendProfileCard,
+  mediaDoneKeyboard,
+} = require('../utils/media');
 
 function resetProfileSession(ctx) {
   ctx.session.profileFlow = {
@@ -24,9 +32,18 @@ function resetProfileSession(ctx) {
   };
 }
 
+function resetMediaSession(ctx) {
+  ctx.session.mediaFlow = {
+    active: false,
+    mode: '',
+    pendingMedia: [],
+  };
+}
+
 function ensureSessionDefaults(ctx) {
   if (!ctx.session) ctx.session = {};
   if (!ctx.session.profileFlow) resetProfileSession(ctx);
+  if (!ctx.session.mediaFlow) resetMediaSession(ctx);
 }
 
 function profileSessionMiddleware(ctx, next) {
@@ -53,45 +70,7 @@ async function getBrowseList(gender, viewerId) {
 async function sendOrEditProfileCard(ctx, user, gender, index, total, options = {}) {
   const caption = buildProfileCaption(user, index, total);
   const keyboard = buildProfileButtons(user, gender, index, total, options.isAdminView);
-
-  try {
-    if (ctx.updateType === 'callback_query') {
-      await ctx.editMessageMedia(
-        {
-          type: 'photo',
-          media: user.photoFileId,
-          caption,
-          parse_mode: 'HTML',
-        },
-        {
-          reply_markup: keyboard.reply_markup,
-        }
-      );
-      return;
-    }
-
-    await ctx.replyWithPhoto(user.photoFileId, {
-      caption,
-      parse_mode: 'HTML',
-      reply_markup: keyboard.reply_markup,
-    });
-  } catch (error) {
-    try {
-      if (ctx.updateType === 'callback_query') {
-        await ctx.editMessageCaption(caption, {
-          parse_mode: 'HTML',
-          reply_markup: keyboard.reply_markup,
-        });
-        return;
-      }
-    } catch (_) {}
-
-    await ctx.replyWithPhoto(user.photoFileId, {
-      caption,
-      parse_mode: 'HTML',
-      reply_markup: keyboard.reply_markup,
-    });
-  }
+  await sendProfileCard(ctx, user, caption, keyboard);
 }
 
 async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) {
@@ -127,16 +106,9 @@ async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) 
   await sendOrEditProfileCard(ctx, list[index], gender, index, list.length, { isAdminView });
 }
 
-async function showMyProfile(ctx) {
-  if (!(await requirePrivateChat(ctx))) return;
-
-  const user = await getProfileByTelegramId(ctx.from.id);
-  if (!user || !user.isProfileComplete) {
-    await ctx.reply('အရင်ဆုံး သင့် profile ကို ဖြည့်ပေးပါ။', mainMenuKeyboard());
-    return;
-  }
-
-  const caption = [
+function buildMyProfileCaption(user) {
+  const mediaCount = normalizeProfileMedia(user).length;
+  return [
     '👤 <b>ကျွန်ုပ်၏ Profile</b>',
     '',
     `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
@@ -147,18 +119,30 @@ async function showMyProfile(ctx) {
     `📍 <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
     `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
     `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `🖼 <b>Media:</b> ${mediaCount}/${MAX_PROFILE_MEDIA}`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
   ].join('\n');
+}
 
-  await ctx.replyWithPhoto(user.photoFileId, {
-    caption,
-    parse_mode: 'HTML',
-    reply_markup: inlineKeyboard([
-      [callbackButton('✏️ Profile ပြင်ရန်', 'edit:profile', BUTTON_STYLE.PRIMARY)],
-      [callbackButton(user.isHidden ? '👁 Profile ပြန်ပြရန်' : '🙈 Profile ဖျောက်ရန်', 'toggle:hide', user.isHidden ? BUTTON_STYLE.SUCCESS : BUTTON_STYLE.DANGER)],
-    ]).reply_markup,
-  });
+function myProfileKeyboard(user) {
+  return inlineKeyboard([
+    [callbackButton('✏️ Profile ပြင်ရန်', 'edit:profile', BUTTON_STYLE.PRIMARY)],
+    [callbackButton('🖼 ပုံထည့်/ပြင်မယ်', 'media:manage', BUTTON_STYLE.SUCCESS)],
+    [callbackButton(user.isHidden ? '👁 Profile ပြန်ပြရန်' : '🙈 Profile ဖျောက်ရန်', 'toggle:hide', user.isHidden ? BUTTON_STYLE.SUCCESS : BUTTON_STYLE.DANGER)],
+  ]);
+}
+
+async function showMyProfile(ctx) {
+  if (!(await requirePrivateChat(ctx))) return;
+
+  const user = await getProfileByTelegramId(ctx.from.id);
+  if (!user || !user.isProfileComplete) {
+    await ctx.reply('အရင်ဆုံး သင့် profile ကို ဖြည့်ပေးပါ။', mainMenuKeyboard());
+    return;
+  }
+
+  await sendProfileCard(ctx, user, buildMyProfileCaption(user), myProfileKeyboard(user), { album: true });
 }
 
 async function startProfileFlow(ctx, editing = false) {
@@ -179,9 +163,10 @@ async function startProfileFlow(ctx, editing = false) {
       height: existing?.height || '',
       address: existing?.address || '',
       hobby: existing?.hobby || '',
-      photoFileId: existing?.photoFileId || '',
+      media: [],
     },
   };
+  resetMediaSession(ctx);
 
   await ctx.reply(
     editing
@@ -191,9 +176,27 @@ async function startProfileFlow(ctx, editing = false) {
   );
 }
 
+function promptMediaUpload(ctx, textPrefix = '') {
+  const text = [
+    textPrefix,
+    `🖼 Photo / Video ကို 1 ခုမှ ${MAX_PROFILE_MEDIA} ခုအထိ ပို့ပါ။`,
+    '',
+    'ပြီးရင် ✅ Done ကိုနှိပ်ပါ။',
+    'Video အရှည်ကြီးတွေမပို့ဘဲ profile အတွက်သင့်တော်တဲ့ short video ပို့တာပိုကောင်းပါတယ်။',
+  ].filter(Boolean).join('\n');
+
+  return ctx.reply(text, { reply_markup: mediaDoneKeyboard().reply_markup });
+}
+
 async function finishProfileFlow(ctx) {
   const flow = ctx.session.profileFlow;
   const data = flow.data;
+  const media = Array.isArray(data.media) ? data.media : [];
+
+  if (!media.length) {
+    await promptMediaUpload(ctx, 'အနည်းဆုံး photo/video 1 ခုလိုအပ်ပါတယ်။');
+    return;
+  }
 
   if (!ctx.from.username) {
     await ctx.reply(
@@ -218,7 +221,8 @@ async function finishProfileFlow(ctx) {
         height: data.height,
         address: data.address,
         hobby: data.hobby,
-        photoFileId: data.photoFileId,
+        media,
+        photoFileId: media[0]?.fileId || '',
         isProfileComplete: true,
         updatedAt: new Date(),
       },
@@ -230,19 +234,207 @@ async function finishProfileFlow(ctx) {
   );
 
   resetProfileSession(ctx);
+  resetMediaSession(ctx);
   await ctx.reply('✅ သင့် Profile ကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။', mainMenuKeyboard());
   await showMyProfile(ctx);
+}
+
+async function addMediaToProfileFlow(ctx, rawMedia) {
+  const flow = ctx.session.profileFlow;
+  const current = flow.data.media || [];
+  if (current.length >= MAX_PROFILE_MEDIA) {
+    await ctx.reply(`အများဆုံး ${MAX_PROFILE_MEDIA} ခုထိပဲ ထည့်နိုင်ပါတယ်။ ✅ Done ကိုနှိပ်ပါ။`, { reply_markup: mediaDoneKeyboard().reply_markup });
+    return;
+  }
+
+  const action = flow.editing ? 'update' : 'create';
+  const backup = await backupMediaToChannel(ctx, rawMedia, action);
+  const meta = buildMediaMetadata(rawMedia, backup, current.length, action);
+  flow.data.media = [...current, meta];
+
+  await ctx.reply(
+    `✅ Media ${flow.data.media.length}/${MAX_PROFILE_MEDIA} သိမ်းပြီးပါပြီ။ နောက်ထပ် photo/video ပို့နိုင်ပါတယ် သို့မဟုတ် ✅ Done နှိပ်ပါ။`,
+    { reply_markup: mediaDoneKeyboard().reply_markup }
+  );
+}
+
+async function startMediaManage(ctx) {
+  if (!(await requirePrivateChat(ctx))) return;
+  const user = await getProfileByTelegramId(ctx.from.id);
+  if (!user || !user.isProfileComplete) {
+    await ctx.reply('အရင်ဆုံး သင့် profile ကို ဖြည့်ပေးပါ။', mainMenuKeyboard());
+    return;
+  }
+
+  const count = normalizeProfileMedia(user).length;
+  await ctx.reply(
+    [
+      '🖼 <b>Profile Media ထည့်/ပြင်မယ်</b>',
+      '',
+      `လက်ရှိ media: <b>${count}/${MAX_PROFILE_MEDIA}</b>`,
+      '',
+      '➕ ပုံအသစ်ထပ်ထည့်မယ် - media အဟောင်းတွေကိုမဖျက်ဘဲ ထပ်ထည့်မယ်။',
+      '♻️ ပုံအစားထိုးမယ် - media အဟောင်းနေရာကို အသစ်နဲ့အစားထိုးမယ်။',
+    ].join('\n'),
+    {
+      parse_mode: 'HTML',
+      reply_markup: inlineKeyboard([
+        [callbackButton('➕ ပုံအသစ်ထပ်ထည့်မယ်', 'media:start:add', BUTTON_STYLE.SUCCESS)],
+        [callbackButton('♻️ ပုံအစားထိုးမယ်', 'media:start:replace', BUTTON_STYLE.PRIMARY)],
+        [callbackButton('❌ Cancel', 'media:cancel', BUTTON_STYLE.DANGER)],
+      ]).reply_markup,
+    }
+  );
+}
+
+async function startMediaUpdateFlow(ctx, mode) {
+  if (!(await requirePrivateChat(ctx))) return;
+  const user = await getProfileByTelegramId(ctx.from.id);
+  if (!user || !user.isProfileComplete) {
+    await ctx.reply('အရင်ဆုံး သင့် profile ကို ဖြည့်ပေးပါ။', mainMenuKeyboard());
+    return;
+  }
+
+  const existingCount = normalizeProfileMedia(user).length;
+  if (mode === 'add' && existingCount >= MAX_PROFILE_MEDIA) {
+    await ctx.reply(`လက်ရှိ media ${MAX_PROFILE_MEDIA}/${MAX_PROFILE_MEDIA} ဖြစ်နေပါတယ်။ ထပ်ထည့်လို့မရတော့ပါ။ အစားထိုးတာကိုသုံးပါ။`, mainMenuKeyboard());
+    return;
+  }
+
+  ctx.session.mediaFlow = {
+    active: true,
+    mode,
+    pendingMedia: [],
+  };
+
+  const prefix = mode === 'replace'
+    ? '♻️ အစားထိုးမယ်။ Media အသစ်တွေကိုပို့ပါ။ Done နှိပ်ပြီးတဲ့အခါ backup channel ထဲမှာ <b>post update</b> caption နဲ့အသစ်တင်ပြီး MongoDB ကိုအသစ်နဲ့ update လုပ်ပါမယ်။'
+    : `➕ ထပ်ထည့်မယ်။ နောက်ထပ် ${MAX_PROFILE_MEDIA - existingCount} ခုအထိပို့နိုင်ပါတယ်။`;
+
+  await ctx.reply(prefix, { parse_mode: 'HTML' });
+  await promptMediaUpload(ctx);
+}
+
+async function addMediaToMediaUpdateFlow(ctx, rawMedia) {
+  const flow = ctx.session.mediaFlow;
+  const user = await getProfileByTelegramId(ctx.from.id);
+  const existing = normalizeProfileMedia(user);
+  const pending = flow.pendingMedia || [];
+  const maxAllowed = flow.mode === 'add' ? MAX_PROFILE_MEDIA - existing.length : MAX_PROFILE_MEDIA;
+
+  if (pending.length >= maxAllowed) {
+    await ctx.reply(`အများဆုံး ${maxAllowed} ခုထိပဲ ပို့နိုင်ပါတယ်။ ✅ Done ကိုနှိပ်ပါ။`, { reply_markup: mediaDoneKeyboard().reply_markup });
+    return;
+  }
+
+  const action = flow.mode === 'replace' ? 'update' : 'add';
+  const backup = await backupMediaToChannel(ctx, rawMedia, action);
+  const meta = buildMediaMetadata(rawMedia, backup, flow.mode === 'add' ? existing.length + pending.length : pending.length, action);
+  flow.pendingMedia = [...pending, meta];
+
+  await ctx.reply(
+    `✅ Media ${flow.pendingMedia.length}/${maxAllowed} သိမ်းပြီးပါပြီ။ နောက်ထပ် photo/video ပို့နိုင်ပါတယ် သို့မဟုတ် ✅ Done နှိပ်ပါ။`,
+    { reply_markup: mediaDoneKeyboard().reply_markup }
+  );
+}
+
+async function finishMediaUpdateFlow(ctx) {
+  const flow = ctx.session.mediaFlow;
+  if (!flow?.active) return;
+
+  const pending = Array.isArray(flow.pendingMedia) ? flow.pendingMedia : [];
+  if (!pending.length) {
+    await ctx.answerCbQuery('အနည်းဆုံး media 1 ခု ပို့ပါ။', { show_alert: true });
+    return;
+  }
+
+  const user = await getProfileByTelegramId(ctx.from.id);
+  const existing = normalizeProfileMedia(user);
+  const newMedia = flow.mode === 'replace'
+    ? pending.map((item, index) => ({ ...item, order: index }))
+    : [...existing, ...pending].slice(0, MAX_PROFILE_MEDIA).map((item, index) => ({ ...item, order: index }));
+
+  await User.findOneAndUpdate(
+    { telegramId: Number(ctx.from.id) },
+    {
+      $set: {
+        media: newMedia,
+        photoFileId: newMedia[0]?.fileId || '',
+        updatedAt: new Date(),
+      },
+    },
+    { new: true }
+  );
+
+  resetMediaSession(ctx);
+  await ctx.answerCbQuery('Media update ပြီးပါပြီ။');
+  await ctx.reply(flow.mode === 'replace' ? '♻️ Profile media ကို အသစ်နဲ့ အစားထိုးပြီးပါပြီ။' : '➕ Profile media အသစ်ထပ်ထည့်ပြီးပါပြီ။', mainMenuKeyboard());
+  await showMyProfile(ctx);
+}
+
+async function cancelMediaFlows(ctx) {
+  resetMediaSession(ctx);
+  resetProfileSession(ctx);
+  await ctx.answerCbQuery().catch(() => {});
+  await ctx.reply('❌ Cancel လုပ်ပြီးပါပြီ။', mainMenuKeyboard());
+}
+
+async function handleIncomingMedia(ctx, next) {
+  ensureSessionDefaults(ctx);
+  const rawMedia = extractMediaFromMessage(ctx.message);
+  if (!rawMedia) return next();
+
+  if (ctx.session.profileFlow?.active && ctx.session.profileFlow.step === 'media') {
+    if (!(await requirePrivateChat(ctx))) return;
+    await addMediaToProfileFlow(ctx, rawMedia);
+    return;
+  }
+
+  if (ctx.session.mediaFlow?.active) {
+    if (!(await requirePrivateChat(ctx))) return;
+    await addMediaToMediaUpdateFlow(ctx, rawMedia);
+    return;
+  }
+
+  return next();
 }
 
 function registerProfileCommands(bot) {
   bot.hears('📝 Profile ဖြည့်ရန်', async (ctx) => startProfileFlow(ctx, false));
   bot.hears('✏️ Profile ပြင်ရန်', async (ctx) => startProfileFlow(ctx, true));
   bot.hears('👤 ကျွန်ုပ်၏ Profile', showMyProfile);
+  bot.hears('🖼 ပုံထည့်/ပြင်မယ်', startMediaManage);
 
   bot.action('edit:profile', async (ctx) => {
     await ctx.answerCbQuery();
     await startProfileFlow(ctx, true);
   });
+
+  bot.action('media:manage', async (ctx) => {
+    await ctx.answerCbQuery();
+    await startMediaManage(ctx);
+  });
+
+  bot.action(/^media:start:(add|replace)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await startMediaUpdateFlow(ctx, ctx.match[1]);
+  });
+
+  bot.action('media:done', async (ctx) => {
+    ensureSessionDefaults(ctx);
+    if (ctx.session.profileFlow?.active && ctx.session.profileFlow.step === 'media') {
+      await ctx.answerCbQuery();
+      await finishProfileFlow(ctx);
+      return;
+    }
+    if (ctx.session.mediaFlow?.active) {
+      await finishMediaUpdateFlow(ctx);
+      return;
+    }
+    await ctx.answerCbQuery('Active media flow မရှိပါ။');
+  });
+
+  bot.action('media:cancel', cancelMediaFlows);
 
   bot.action('toggle:hide', async (ctx) => {
     await ctx.answerCbQuery();
@@ -256,6 +448,9 @@ function registerProfileCommands(bot) {
       mainMenuKeyboard()
     );
   });
+
+  bot.on('photo', handleIncomingMedia);
+  bot.on('video', handleIncomingMedia);
 
   bot.on('text', async (ctx, next) => {
     const flow = ctx.session.profileFlow;
@@ -281,9 +476,9 @@ function registerProfileCommands(bot) {
     if (flow.step === 'gender') {
       if (text !== 'ကျား' && text !== 'မ') {
         await ctx.reply(
-        'ကျား သို့မဟုတ် မ ကိုသာ ရွေးပေးပါ။',
-        replyKeyboard([[replyButton('ကျား', BUTTON_STYLE.PRIMARY), replyButton('မ', BUTTON_STYLE.PRIMARY)]], { oneTime: true })
-      );
+          'ကျား သို့မဟုတ် မ ကိုသာ ရွေးပေးပါ။',
+          replyKeyboard([[replyButton('ကျား', BUTTON_STYLE.PRIMARY), replyButton('မ', BUTTON_STYLE.PRIMARY)]], { oneTime: true })
+        );
         return;
       }
       flow.data.gender = text === 'ကျား' ? 'male' : 'female';
@@ -359,34 +554,23 @@ function registerProfileCommands(bot) {
         return;
       }
       flow.data.hobby = safeTextLength(text, 200);
-      flow.step = 'photo';
-      await ctx.reply('နောက်ဆုံးအဆင့်အနေနဲ့ သင့်ဓာတ်ပုံတစ်ပုံ ပို့ပေးပါ။', Markup.removeKeyboard());
+      flow.step = 'media';
+      await promptMediaUpload(ctx, 'နောက်ဆုံးအဆင့်အနေနဲ့ profile photo/video ပို့ပါ။');
+      return;
+    }
+
+    if (flow.step === 'media') {
+      await ctx.reply('ဒီအဆင့်မှာ photo/video ပဲ ပို့ပေးပါ။ ပြီးရင် ✅ Done ကိုနှိပ်ပါ။', { reply_markup: mediaDoneKeyboard().reply_markup });
       return;
     }
 
     return next();
   });
 
-  bot.on('photo', async (ctx, next) => {
-    const flow = ctx.session.profileFlow;
-    if (!flow?.active || flow.step !== 'photo') return next();
-    if (!(await requirePrivateChat(ctx))) return;
-
-    const photos = ctx.message.photo || [];
-    const best = photos[photos.length - 1];
-    if (!best?.file_id) {
-      await ctx.reply('ဓာတ်ပုံတစ်ပုံ ထပ်ပို့ပေးပါ။');
-      return;
-    }
-
-    flow.data.photoFileId = best.file_id;
-    await finishProfileFlow(ctx);
-  });
-
   bot.on('message', async (ctx, next) => {
-    const flow = ctx.session.profileFlow;
-    if (flow?.active && flow.step === 'photo') {
-      await ctx.reply('ဒီအဆင့်မှာ ဓာတ်ပုံပဲ ပို့ပေးရပါမယ်။');
+    ensureSessionDefaults(ctx);
+    if (ctx.session.mediaFlow?.active) {
+      await ctx.reply('ဒီအဆင့်မှာ photo/video ပဲ ပို့ပေးပါ။ ပြီးရင် ✅ Done ကိုနှိပ်ပါ။', { reply_markup: mediaDoneKeyboard().reply_markup });
       return;
     }
     return next();
@@ -397,6 +581,7 @@ module.exports = {
   registerProfileCommands,
   profileSessionMiddleware,
   resetProfileSession,
+  resetMediaSession,
   ensureSessionDefaults,
   getProfileByTelegramId,
   getBrowseList,

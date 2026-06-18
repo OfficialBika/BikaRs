@@ -9,6 +9,7 @@ async function sendHelp(ctx) {
       '• 👧 Girls List / 👦 Boys List - တခြား user profile များကြည့်ရန်',
       '• 👤 ကျွန်ုပ်၏ Profile - ကိုယ့် profile ကြည့်ရန်',
       '• ✏️ Profile ပြင်ရန် - ကိုယ့် profile ပြင်ဆင်ရန်',
+      '• 🖼 ပုံထည့်/ပြင်မယ် - profile photo/video ထပ်ထည့်ရန် သို့မဟုတ် အစားထိုးရန်',
       '• 🎲 ကျပန်း Profile ကြည့်ရန် - random profile ကြည့်ရန်',
       '',
       'Privacy Commands:',
@@ -34,7 +35,7 @@ async function sendHelp(ctx) {
 function registerStartCommands(bot) {
   bot.start(async (ctx) => {
     await ctx.reply(
-      '💘 Cupid Bot မှ ကြိုဆိုပါသည်။\n\nသင့် profile ကို ဖြည့်ပြီး တခြား user များ၏ profile ကို ကြည့်ရှုနိုင်ပါသည်။',
+      '💘 Cupid Bot မှ ကြိုဆိုပါသည်။\n\nသင့် profile ကို ဖြည့်ပြီး photo/video 1-3 ခုထည့်နိုင်ပါတယ်။ တခြား user များ၏ profile ကိုလည်း ကြည့်ရှုနိုင်ပါသည်။',
       mainMenuKeyboard()
     );
   });
