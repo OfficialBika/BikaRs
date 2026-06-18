@@ -19,6 +19,7 @@ const {
 const { registerMatchCommands } = require('./commands/match');
 const { registerPrivacyCommands } = require('./commands/privacy');
 const { registerAdminCommands } = require('./commands/admin');
+const { backfillProfileIds } = require('./utils/profileIds');
 
 validateEnv();
 
@@ -61,6 +62,7 @@ app.use(bot.webhookCallback('/webhook'));
 (async () => {
   try {
     await mongoose.connect(MONGODB_URI);
+    await backfillProfileIds();
     await bot.telegram.setWebhook(`${WEBHOOK_URL.replace(/\/$/, '')}/webhook`);
 
     app.listen(PORT, () => {

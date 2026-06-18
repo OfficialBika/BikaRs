@@ -7,6 +7,8 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 - Start screen with Support Group, Support Channel, and Main Menu buttons
 - Main reply menu appears only after tapping Main Menu
 - Profile create/edit flow
+- Sequential public Profile ID for completed profiles
+- `/check <profileId>` command to open a profile by Profile ID
 - Profile photo/video media support, 1 to 3 items per user
 - MongoDB stores media metadata only: `fileId`, `fileUniqueId`, backup channel id, and backup message id
 - Cupid Database channel backup support
@@ -23,6 +25,8 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 - Hide/show own profile
 - Delete own profile
 - Support Channel New User Alert after first profile completion
+- Support Channel New User Alert includes Profile ID
+- Admin report view includes target/reporter Profile ID
 - New User Alert includes all profile media, full user info, clickable mention, and Start To DM button
 - Render webhook deployment support
 
@@ -40,7 +44,8 @@ BikaRs/
 ├── models/
 │   ├── User.js
 │   ├── Reaction.js
-│   └── Report.js
+│   ├── Report.js
+│   └── Counter.js
 ├── middlewares/
 │   ├── auth.js
 │   └── privateOnly.js
@@ -53,7 +58,8 @@ BikaRs/
 └── utils/
     ├── escapeHtml.js
     ├── keyboards.js
-    └── media.js
+    ├── media.js
+    └── profileIds.js
 ```
 
 ## ENV Setup
@@ -137,6 +143,30 @@ Media edit menu:
 ```
 
 Replace mode posts new backup messages with the caption title `Cupid Media Post Update`, then MongoDB is updated with the new `fileId` and `backupMessageId` values.
+
+
+## Profile ID System
+
+Completed profiles receive a public sequential `profileId`.
+
+- Old completed users are backfilled on startup by `createdAt` ascending order.
+- IDs start from `1`.
+- New users receive the next ID when their profile is completed for the first time.
+- MongoDB uses a `counters` collection to keep the next profile ID safe.
+- Use `/check <profileId>` to open a specific profile.
+
+Example:
+
+```txt
+/check 1
+```
+
+Profile ID is displayed in:
+
+- User profile card
+- My Profile
+- Support Channel New User Alert
+- Admin report notification/view
 
 ## Local Run
 
