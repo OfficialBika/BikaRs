@@ -1,13 +1,68 @@
 const { Markup } = require('telegraf');
 const { escapeHtml } = require('./escapeHtml');
 
+const BUTTON_STYLE = Object.freeze({
+  PRIMARY: 'primary',
+  SUCCESS: 'success',
+  DANGER: 'danger',
+});
+
+function normalizeStyle(style = BUTTON_STYLE.PRIMARY) {
+  return Object.values(BUTTON_STYLE).includes(style) ? style : BUTTON_STYLE.PRIMARY;
+}
+
+function callbackButton(text, callbackData, style = BUTTON_STYLE.PRIMARY) {
+  return {
+    text,
+    callback_data: callbackData,
+    style: normalizeStyle(style),
+  };
+}
+
+function urlButton(text, url, style = BUTTON_STYLE.PRIMARY) {
+  return {
+    text,
+    url,
+    style: normalizeStyle(style),
+  };
+}
+
+function replyButton(text, style = BUTTON_STYLE.PRIMARY) {
+  return {
+    text,
+    style: normalizeStyle(style),
+  };
+}
+
+function inlineKeyboard(rows) {
+  return Markup.inlineKeyboard(rows);
+}
+
+function replyKeyboard(rows, options = {}) {
+  let keyboard = Markup.keyboard(rows);
+
+  if (options.resize !== false) keyboard = keyboard.resize();
+  if (options.oneTime) keyboard = keyboard.oneTime();
+
+  return keyboard;
+}
+
 function mainMenuKeyboard() {
-  return Markup.keyboard([
-    ['📝 Profile ဖြည့်ရန်', '👤 ကျွန်ုပ်၏ Profile'],
-    ['👧 Girls List', '👦 Boys List'],
-    ['✏️ Profile ပြင်ရန်', '🎲 ကျပန်း Profile ကြည့်ရန်'],
-    ['ℹ️ အကူအညီ'],
-  ]).resize();
+  return replyKeyboard([
+    [
+      replyButton('📝 Profile ဖြည့်ရန်', BUTTON_STYLE.SUCCESS),
+      replyButton('👤 ကျွန်ုပ်၏ Profile', BUTTON_STYLE.PRIMARY),
+    ],
+    [
+      replyButton('👧 Girls List', BUTTON_STYLE.PRIMARY),
+      replyButton('👦 Boys List', BUTTON_STYLE.PRIMARY),
+    ],
+    [
+      replyButton('✏️ Profile ပြင်ရန်', BUTTON_STYLE.PRIMARY),
+      replyButton('🎲 ကျပန်း Profile ကြည့်ရန်', BUTTON_STYLE.PRIMARY),
+    ],
+    [replyButton('ℹ️ အကူအညီ', BUTTON_STYLE.PRIMARY)],
+  ]);
 }
 
 function profileOpenUrl(user) {
@@ -53,30 +108,36 @@ function buildProfileButtons(user, gender, index, total, isAdminView = false) {
 
   const rows = [
     [
-      Markup.button.callback(`👍 ${user.reactions?.like || 0}`, `rx:like:${user.telegramId}:${gender}:${index}`),
-      Markup.button.callback(`❤ ${user.reactions?.love || 0}`, `rx:love:${user.telegramId}:${gender}:${index}`),
-      Markup.button.callback(`🤣 ${user.reactions?.laugh || 0}`, `rx:laugh:${user.telegramId}:${gender}:${index}`),
+      callbackButton(`👍 ${user.reactions?.like || 0}`, `rx:like:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.PRIMARY),
+      callbackButton(`❤ ${user.reactions?.love || 0}`, `rx:love:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.SUCCESS),
+      callbackButton(`🤣 ${user.reactions?.laugh || 0}`, `rx:laugh:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.PRIMARY),
     ],
-    [Markup.button.url('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user))],
-    [Markup.button.callback('🚨 Report', `report:${user.telegramId}:${gender}:${index}`)],
+    [urlButton('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
+    [callbackButton('🚨 Report', `report:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.DANGER)],
     [
-      Markup.button.callback('⬅️ Back', `nav:${gender}:${prevIndex}`),
-      Markup.button.callback('➡️ Next', `nav:${gender}:${nextIndex}`),
+      callbackButton('⬅️ Back', `nav:${gender}:${prevIndex}`, BUTTON_STYLE.PRIMARY),
+      callbackButton('➡️ Next', `nav:${gender}:${nextIndex}`, BUTTON_STYLE.PRIMARY),
     ],
-    [Markup.button.callback('🏠 Main Menu', 'main:menu')],
+    [callbackButton('🏠 Main Menu', 'main:menu', BUTTON_STYLE.PRIMARY)],
   ];
 
   if (isAdminView) {
     rows.splice(3, 0, [
-      Markup.button.callback('🚫 Ban', `adminban:${user.telegramId}`),
-      Markup.button.callback('🗑 Delete', `admindel:${user.telegramId}`),
+      callbackButton('🚫 Ban', `adminban:${user.telegramId}`, BUTTON_STYLE.DANGER),
+      callbackButton('🗑 Delete', `admindel:${user.telegramId}`, BUTTON_STYLE.DANGER),
     ]);
   }
 
-  return Markup.inlineKeyboard(rows);
+  return inlineKeyboard(rows);
 }
 
 module.exports = {
+  BUTTON_STYLE,
+  callbackButton,
+  urlButton,
+  replyButton,
+  inlineKeyboard,
+  replyKeyboard,
   mainMenuKeyboard,
   profileOpenUrl,
   genderLabel,
