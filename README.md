@@ -8,7 +8,7 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 - Main reply menu appears only after tapping Main Menu
 - Profile create/edit flow
 - Sequential public Profile ID for completed profiles
-- `/check <profileId>` command to open a profile by Profile ID
+- `/check <profileId>` command to open a profile by Profile ID (works in DM and groups)
 - Profile photo/video media support, 1 to 3 items per user
 - MongoDB stores media metadata only: `fileId`, `fileUniqueId`, backup channel id, and backup message id
 - Cupid Database channel backup support
@@ -21,7 +21,7 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 - Report profile
 - Admin panel
 - Ban / unban / delete profile
-- Broadcast
+- Pro broadcast with delivery log, stop/resume/status, copy/forward, and duplicate protection
 - Hide/show own profile
 - Delete own profile
 - Support Channel New User Alert after first profile completion
@@ -45,7 +45,9 @@ BikaRs/
 │   ├── User.js
 │   ├── Reaction.js
 │   ├── Report.js
-│   └── Counter.js
+│   ├── Counter.js
+│   ├── BroadcastJob.js
+│   └── BroadcastDelivery.js
 ├── middlewares/
 │   ├── auth.js
 │   └── privateOnly.js
@@ -78,6 +80,8 @@ SUPPORT_CHANNEL_ID=-1001977849806
 SUPPORT_GROUP_ID=-1001771277613
 SUPPORT_CHANNEL_URL=
 SUPPORT_GROUP_URL=
+BROADCAST_DELAY_MS=150
+BROADCAST_PROGRESS_EVERY=20
 ```
 
 `WEBHOOK_URL` must be the base HTTPS URL only. Do not add `/webhook` manually.
@@ -153,7 +157,7 @@ Completed profiles receive a public sequential `profileId`.
 - IDs start from `1`.
 - New users receive the next ID when their profile is completed for the first time.
 - MongoDB uses a `counters` collection to keep the next profile ID safe.
-- Use `/check <profileId>` to open a specific profile.
+- Use `/check <profileId>` to open a specific profile in DM or group chats.
 
 Example:
 
@@ -218,6 +222,10 @@ Admin commands:
 
 ```txt
 /admin
+/broadcast
+/stop_broadcast
+/broadcast_status
+/broadcast_resume <jobId>
 /ban <telegramId>
 /unban <telegramId>
 /deleteprofile <telegramId>
@@ -245,3 +253,46 @@ danger  = red
 ```
 
 Most button text also keeps emoji labels, so older Telegram clients still show clear actions even if style rendering is unavailable.
+
+## Pro Broadcast System
+
+The old broadcast was replaced with a delivery-tracked broadcast system inspired by pro gcast flow.
+
+### Usage
+
+Reply to the message you want to send, then run:
+
+```txt
+/broadcast
+```
+
+Options:
+
+```txt
+/broadcast -copy        # default, sends a clean copy
+/broadcast -forward     # forwards original message
+/broadcast -completed   # sends only to completed profiles
+/broadcast -all         # include banned users too
+```
+
+Control commands:
+
+```txt
+/stop_broadcast
+/stop_gcast
+/broadcast_status
+/broadcast_resume <jobId>
+```
+
+### How duplicate protection works
+
+Each broadcast creates a `BroadcastJob`. Each user delivery is saved in `BroadcastDelivery` with a unique `(jobId, telegramId)` record. If a job is resumed or retried, users who already received the message are skipped and will not receive duplicates.
+
+### Broadcast ENV
+
+```env
+BROADCAST_DELAY_MS=150
+BROADCAST_PROGRESS_EVERY=20
+```
+
+Increase `BROADCAST_DELAY_MS` if Telegram flood limits happen often.
