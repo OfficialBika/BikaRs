@@ -249,6 +249,7 @@ function buildNewUserAlertText(user) {
     '🆕 <b>New User Alert</b>',
     '',
     `👤 User: ${mentionFromProfile(user)}`,
+    `🆔 Profile ID: <code>${escapeHtml(user.profileId || '-')}</code>`,
     `🆔 Telegram ID: <code>${user.telegramId || '-'}</code>`,
     `🧾 Username: ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
     '',

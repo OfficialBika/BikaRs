@@ -87,6 +87,7 @@ function buildProfileCaption(user, index, total) {
   return [
     '💘 <b>Cupid Profile</b>',
     '',
+    `🆔 <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
     `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
     `⚧ <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
     `💞 <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
@@ -132,6 +133,22 @@ function buildProfileButtons(user, gender, index, total, isAdminView = false) {
   return inlineKeyboard(rows);
 }
 
+
+function buildDirectProfileButtons(user) {
+  const rows = [
+    [
+      callbackButton(`👍 ${user.reactions?.like || 0}`, `rxcheck:like:${user.telegramId}`, BUTTON_STYLE.PRIMARY),
+      callbackButton(`❤ ${user.reactions?.love || 0}`, `rxcheck:love:${user.telegramId}`, BUTTON_STYLE.SUCCESS),
+      callbackButton(`🤣 ${user.reactions?.laugh || 0}`, `rxcheck:laugh:${user.telegramId}`, BUTTON_STYLE.PRIMARY),
+    ],
+    [urlButton('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
+    [callbackButton('🚨 Report', `reportcheck:${user.telegramId}`, BUTTON_STYLE.DANGER)],
+    [callbackButton('🏠 Main Menu', 'main:menu', BUTTON_STYLE.PRIMARY)],
+  ];
+
+  return inlineKeyboard(rows);
+}
+
 module.exports = {
   BUTTON_STYLE,
   callbackButton,
@@ -145,4 +162,5 @@ module.exports = {
   reactionEmoji,
   buildProfileCaption,
   buildProfileButtons,
+  buildDirectProfileButtons,
 };
