@@ -1,4 +1,43 @@
-const { mainMenuKeyboard } = require('../utils/keyboards');
+const { Markup } = require('telegraf');
+const {
+  SUPPORT_CHANNEL_ID,
+  SUPPORT_GROUP_ID,
+  SUPPORT_CHANNEL_URL,
+  SUPPORT_GROUP_URL,
+} = require('../config/env');
+const {
+  BUTTON_STYLE,
+  callbackButton,
+  urlButton,
+  inlineKeyboard,
+  mainMenuKeyboard,
+} = require('../utils/keyboards');
+
+function startText() {
+  return [
+    '💘 <b>Cupid Bot မှ ကြိုဆိုပါသည်။</b>',
+    '',
+    'ဒီ bot မှာ ကိုယ့် profile ဖြည့်ပြီး photo/video 1-3 ခုထည့်နိုင်ပါတယ်။',
+    'တခြား user များ၏ profile ကိုလည်း ကြည့်ရှုနိုင်ပါသည်။',
+    '',
+    'အောက်က <b>Main Menu</b> ကိုနှိပ်ပြီး စတင်အသုံးပြုပါ။',
+  ].join('\n');
+}
+
+function startKeyboard() {
+  const groupButton = SUPPORT_GROUP_URL
+    ? urlButton('👥 Support Group', SUPPORT_GROUP_URL, BUTTON_STYLE.PRIMARY)
+    : callbackButton('👥 Support Group', 'support:group', BUTTON_STYLE.PRIMARY);
+
+  const channelButton = SUPPORT_CHANNEL_URL
+    ? urlButton('📢 Support Channel', SUPPORT_CHANNEL_URL, BUTTON_STYLE.PRIMARY)
+    : callbackButton('📢 Support Channel', 'support:channel', BUTTON_STYLE.PRIMARY);
+
+  return inlineKeyboard([
+    [groupButton, channelButton],
+    [callbackButton('🏠 Main Menu', 'main:menu', BUTTON_STYLE.SUCCESS)],
+  ]);
+}
 
 async function sendHelp(ctx) {
   await ctx.reply(
@@ -32,13 +71,81 @@ async function sendHelp(ctx) {
   );
 }
 
+function supportInfo(type) {
+  if (type === 'channel') {
+    return {
+      title: '📢 Support Channel',
+      chatId: SUPPORT_CHANNEL_ID,
+      envUrl: SUPPORT_CHANNEL_URL,
+      buttonText: '📢 Open Support Channel',
+    };
+  }
+
+  return {
+    title: '👥 Support Group',
+    chatId: SUPPORT_GROUP_ID,
+    envUrl: SUPPORT_GROUP_URL,
+    buttonText: '👥 Open Support Group',
+  };
+}
+
+async function getSupportInviteLink(ctx, type) {
+  const info = supportInfo(type);
+  if (info.envUrl) return info.envUrl;
+
+  const invite = await ctx.telegram.createChatInviteLink(info.chatId, {
+    name: `Cupid Bot ${type} invite`,
+    creates_join_request: false,
+  });
+
+  return invite.invite_link;
+}
+
+async function openSupport(ctx, type) {
+  const info = supportInfo(type);
+  await ctx.answerCbQuery().catch(() => {});
+
+  try {
+    const inviteLink = await getSupportInviteLink(ctx, type);
+    await ctx.reply(`${info.title} ကိုဖွင့်ရန် အောက်က button ကိုနှိပ်ပါ။`, {
+      reply_markup: inlineKeyboard([
+        [urlButton(info.buttonText, inviteLink, BUTTON_STYLE.PRIMARY)],
+      ]).reply_markup,
+    });
+  } catch (error) {
+    console.error('SUPPORT_INVITE_ERROR:', error);
+    await ctx.reply(
+      [
+        `❌ ${info.title} link ဖွင့်လို့မရသေးပါ။`,
+        '',
+        'Bot ကို support group/channel ထဲမှာ admin ထားပြီး Invite Users permission ပေးပါ။',
+        'သို့မဟုတ် .env ထဲမှာ SUPPORT_GROUP_URL / SUPPORT_CHANNEL_URL ကို invite link နဲ့ ထည့်နိုင်ပါတယ်။',
+      ].join('\n')
+    );
+  }
+}
+
+
+async function clearReplyKeyboard(ctx) {
+  try {
+    const msg = await ctx.reply('⌛', Markup.removeKeyboard());
+    try {
+      await ctx.telegram.deleteMessage(ctx.chat.id, msg.message_id);
+    } catch (_) {}
+  } catch (_) {}
+}
+
 function registerStartCommands(bot) {
   bot.start(async (ctx) => {
-    await ctx.reply(
-      '💘 Cupid Bot မှ ကြိုဆိုပါသည်။\n\nသင့် profile ကို ဖြည့်ပြီး photo/video 1-3 ခုထည့်နိုင်ပါတယ်။ တခြား user များ၏ profile ကိုလည်း ကြည့်ရှုနိုင်ပါသည်။',
-      mainMenuKeyboard()
-    );
+    await clearReplyKeyboard(ctx);
+    await ctx.reply(startText(), {
+      parse_mode: 'HTML',
+      reply_markup: startKeyboard().reply_markup,
+    });
   });
+
+  bot.action('support:group', async (ctx) => openSupport(ctx, 'group'));
+  bot.action('support:channel', async (ctx) => openSupport(ctx, 'channel'));
 
   bot.command('help', sendHelp);
   bot.hears('ℹ️ အကူအညီ', sendHelp);
@@ -47,4 +154,5 @@ function registerStartCommands(bot) {
 module.exports = {
   registerStartCommands,
   sendHelp,
+  startKeyboard,
 };

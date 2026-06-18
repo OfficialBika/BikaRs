@@ -21,6 +21,7 @@ const {
   normalizeProfileMedia,
   sendProfileCard,
   mediaDoneKeyboard,
+  sendNewUserAlertToSupportChannel,
 } = require('../utils/media');
 
 function resetProfileSession(ctx) {
@@ -40,10 +41,85 @@ function resetMediaSession(ctx) {
   };
 }
 
+function resetMediaUiSession(ctx) {
+  ctx.session.mediaUi = {
+    messageIds: [],
+  };
+}
+
+function resetProfileUiSession(ctx) {
+  ctx.session.profileUi = {
+    messageIds: [],
+  };
+}
+
 function ensureSessionDefaults(ctx) {
   if (!ctx.session) ctx.session = {};
   if (!ctx.session.profileFlow) resetProfileSession(ctx);
   if (!ctx.session.mediaFlow) resetMediaSession(ctx);
+  if (!ctx.session.mediaUi) resetMediaUiSession(ctx);
+  if (!ctx.session.profileUi) resetProfileUiSession(ctx);
+}
+
+function normalizeMessageIds(messagesOrMessage) {
+  const items = Array.isArray(messagesOrMessage) ? messagesOrMessage : [messagesOrMessage];
+  return items
+    .map((message) => Number(message?.message_id || message))
+    .filter((id) => Number.isFinite(id) && id > 0);
+}
+
+function rememberMediaUiMessages(ctx, messagesOrMessage) {
+  ensureSessionDefaults(ctx);
+  const ids = normalizeMessageIds(messagesOrMessage);
+  const current = Array.isArray(ctx.session.mediaUi.messageIds) ? ctx.session.mediaUi.messageIds : [];
+  ctx.session.mediaUi.messageIds = [...new Set([...current, ...ids])].slice(-30);
+}
+
+function rememberProfileUiMessages(ctx, messagesOrMessage) {
+  ensureSessionDefaults(ctx);
+  const ids = normalizeMessageIds(messagesOrMessage);
+  ctx.session.profileUi.messageIds = [...new Set(ids)].slice(-30);
+}
+
+async function safeDeleteMessage(ctx, messageId) {
+  const id = Number(messageId);
+  if (!Number.isFinite(id) || id <= 0 || !ctx.chat?.id) return;
+  try {
+    await ctx.telegram.deleteMessage(ctx.chat.id, id);
+  } catch (_) {}
+}
+
+async function cleanupMessageIds(ctx, ids = []) {
+  const uniqueIds = [...new Set(ids.map(Number).filter((id) => Number.isFinite(id) && id > 0))];
+  for (const id of uniqueIds) {
+    await safeDeleteMessage(ctx, id);
+  }
+}
+
+async function cleanupMediaUi(ctx, options = {}) {
+  ensureSessionDefaults(ctx);
+  const ids = Array.isArray(ctx.session.mediaUi.messageIds) ? [...ctx.session.mediaUi.messageIds] : [];
+  if (options.includeCurrentCallback && ctx.callbackQuery?.message?.message_id) {
+    ids.push(ctx.callbackQuery.message.message_id);
+  }
+  await cleanupMessageIds(ctx, ids);
+  resetMediaUiSession(ctx);
+}
+
+async function cleanupProfileUi(ctx, options = {}) {
+  ensureSessionDefaults(ctx);
+  const ids = Array.isArray(ctx.session.profileUi.messageIds) ? [...ctx.session.profileUi.messageIds] : [];
+  if (options.includeCurrentCallback && ctx.callbackQuery?.message?.message_id) {
+    ids.push(ctx.callbackQuery.message.message_id);
+  }
+  await cleanupMessageIds(ctx, ids);
+  resetProfileUiSession(ctx);
+}
+
+async function replyAndRememberMediaUi(ctx, text, extra = {}) {
+  const msg = await ctx.reply(text, extra);
+  rememberMediaUiMessages(ctx, msg);
+  return msg;
 }
 
 function profileSessionMiddleware(ctx, next) {
@@ -68,9 +144,11 @@ async function getBrowseList(gender, viewerId) {
 }
 
 async function sendOrEditProfileCard(ctx, user, gender, index, total, options = {}) {
+  await cleanupProfileUi(ctx, { includeCurrentCallback: true });
   const caption = buildProfileCaption(user, index, total);
   const keyboard = buildProfileButtons(user, gender, index, total, options.isAdminView);
-  await sendProfileCard(ctx, user, caption, keyboard);
+  const sentMessages = await sendProfileCard(ctx, user, caption, keyboard, { album: true });
+  rememberProfileUiMessages(ctx, sentMessages);
 }
 
 async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) {
@@ -142,7 +220,9 @@ async function showMyProfile(ctx) {
     return;
   }
 
-  await sendProfileCard(ctx, user, buildMyProfileCaption(user), myProfileKeyboard(user), { album: true });
+  await cleanupProfileUi(ctx);
+  const sentMessages = await sendProfileCard(ctx, user, buildMyProfileCaption(user), myProfileKeyboard(user), { album: true });
+  rememberProfileUiMessages(ctx, sentMessages);
 }
 
 async function startProfileFlow(ctx, editing = false) {
@@ -185,8 +265,12 @@ function promptMediaUpload(ctx, textPrefix = '') {
     'Video အရှည်ကြီးတွေမပို့ဘဲ profile အတွက်သင့်တော်တဲ့ short video ပို့တာပိုကောင်းပါတယ်။',
   ].filter(Boolean).join('\n');
 
-  return ctx.reply(text, { reply_markup: mediaDoneKeyboard().reply_markup });
+  return replyAndRememberMediaUi(ctx, text, {
+    parse_mode: 'HTML',
+    reply_markup: mediaDoneKeyboard().reply_markup,
+  });
 }
+
 
 async function finishProfileFlow(ctx) {
   const flow = ctx.session.profileFlow;
@@ -207,7 +291,10 @@ async function finishProfileFlow(ctx) {
     return;
   }
 
-  await User.findOneAndUpdate(
+  const existingUser = await User.findOne({ telegramId: Number(ctx.from.id) }).lean();
+  const wasComplete = Boolean(existingUser?.isProfileComplete);
+
+  const savedUser = await User.findOneAndUpdate(
     { telegramId: Number(ctx.from.id) },
     {
       $set: {
@@ -233,6 +320,10 @@ async function finishProfileFlow(ctx) {
     { upsert: true, new: true }
   );
 
+  if (!wasComplete) {
+    await sendNewUserAlertToSupportChannel(ctx, savedUser);
+  }
+
   resetProfileSession(ctx);
   resetMediaSession(ctx);
   await ctx.reply('✅ သင့် Profile ကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။', mainMenuKeyboard());
@@ -242,8 +333,11 @@ async function finishProfileFlow(ctx) {
 async function addMediaToProfileFlow(ctx, rawMedia) {
   const flow = ctx.session.profileFlow;
   const current = flow.data.media || [];
+
   if (current.length >= MAX_PROFILE_MEDIA) {
-    await ctx.reply(`အများဆုံး ${MAX_PROFILE_MEDIA} ခုထိပဲ ထည့်နိုင်ပါတယ်။ ✅ Done ကိုနှိပ်ပါ။`, { reply_markup: mediaDoneKeyboard().reply_markup });
+    await safeDeleteMessage(ctx, ctx.message?.message_id);
+    await cleanupMediaUi(ctx);
+    await promptMediaUpload(ctx, `အများဆုံး ${MAX_PROFILE_MEDIA} ခုထိပဲ ထည့်နိုင်ပါတယ်။ ✅ Done ကိုနှိပ်ပါ။`);
     return;
   }
 
@@ -252,14 +346,21 @@ async function addMediaToProfileFlow(ctx, rawMedia) {
   const meta = buildMediaMetadata(rawMedia, backup, current.length, action);
   flow.data.media = [...current, meta];
 
-  await ctx.reply(
-    `✅ Media ${flow.data.media.length}/${MAX_PROFILE_MEDIA} သိမ်းပြီးပါပြီ။ နောက်ထပ် photo/video ပို့နိုင်ပါတယ် သို့မဟုတ် ✅ Done နှိပ်ပါ။`,
-    { reply_markup: mediaDoneKeyboard().reply_markup }
+  await safeDeleteMessage(ctx, ctx.message?.message_id);
+  await cleanupMediaUi(ctx);
+
+  await promptMediaUpload(
+    ctx,
+    `✅ Media ${flow.data.media.length}/${MAX_PROFILE_MEDIA} သိမ်းပြီးပါပြီ။ နောက်ထပ် photo/video ပို့နိုင်ပါတယ် သို့မဟုတ် ✅ Done နှိပ်ပါ။`
   );
 }
 
+
 async function startMediaManage(ctx) {
   if (!(await requirePrivateChat(ctx))) return;
+  await cleanupProfileUi(ctx);
+  await cleanupMediaUi(ctx);
+
   const user = await getProfileByTelegramId(ctx.from.id);
   if (!user || !user.isProfileComplete) {
     await ctx.reply('အရင်ဆုံး သင့် profile ကို ဖြည့်ပေးပါ။', mainMenuKeyboard());
@@ -267,7 +368,8 @@ async function startMediaManage(ctx) {
   }
 
   const count = normalizeProfileMedia(user).length;
-  await ctx.reply(
+  await replyAndRememberMediaUi(
+    ctx,
     [
       '🖼 <b>Profile Media ထည့်/ပြင်မယ်</b>',
       '',
@@ -286,6 +388,7 @@ async function startMediaManage(ctx) {
     }
   );
 }
+
 
 async function startMediaUpdateFlow(ctx, mode) {
   if (!(await requirePrivateChat(ctx))) return;
@@ -311,8 +414,7 @@ async function startMediaUpdateFlow(ctx, mode) {
     ? '♻️ အစားထိုးမယ်။ Media အသစ်တွေကိုပို့ပါ။ Done နှိပ်ပြီးတဲ့အခါ backup channel ထဲမှာ <b>post update</b> caption နဲ့အသစ်တင်ပြီး MongoDB ကိုအသစ်နဲ့ update လုပ်ပါမယ်။'
     : `➕ ထပ်ထည့်မယ်။ နောက်ထပ် ${MAX_PROFILE_MEDIA - existingCount} ခုအထိပို့နိုင်ပါတယ်။`;
 
-  await ctx.reply(prefix, { parse_mode: 'HTML' });
-  await promptMediaUpload(ctx);
+  await promptMediaUpload(ctx, prefix);
 }
 
 async function addMediaToMediaUpdateFlow(ctx, rawMedia) {
@@ -323,7 +425,9 @@ async function addMediaToMediaUpdateFlow(ctx, rawMedia) {
   const maxAllowed = flow.mode === 'add' ? MAX_PROFILE_MEDIA - existing.length : MAX_PROFILE_MEDIA;
 
   if (pending.length >= maxAllowed) {
-    await ctx.reply(`အများဆုံး ${maxAllowed} ခုထိပဲ ပို့နိုင်ပါတယ်။ ✅ Done ကိုနှိပ်ပါ။`, { reply_markup: mediaDoneKeyboard().reply_markup });
+    await safeDeleteMessage(ctx, ctx.message?.message_id);
+    await cleanupMediaUi(ctx);
+    await promptMediaUpload(ctx, `အများဆုံး ${maxAllowed} ခုထိပဲ ပို့နိုင်ပါတယ်။ ✅ Done ကိုနှိပ်ပါ။`);
     return;
   }
 
@@ -332,11 +436,15 @@ async function addMediaToMediaUpdateFlow(ctx, rawMedia) {
   const meta = buildMediaMetadata(rawMedia, backup, flow.mode === 'add' ? existing.length + pending.length : pending.length, action);
   flow.pendingMedia = [...pending, meta];
 
-  await ctx.reply(
-    `✅ Media ${flow.pendingMedia.length}/${maxAllowed} သိမ်းပြီးပါပြီ။ နောက်ထပ် photo/video ပို့နိုင်ပါတယ် သို့မဟုတ် ✅ Done နှိပ်ပါ။`,
-    { reply_markup: mediaDoneKeyboard().reply_markup }
+  await safeDeleteMessage(ctx, ctx.message?.message_id);
+  await cleanupMediaUi(ctx);
+
+  await promptMediaUpload(
+    ctx,
+    `✅ Media ${flow.pendingMedia.length}/${maxAllowed} သိမ်းပြီးပါပြီ။ နောက်ထပ် photo/video ပို့နိုင်ပါတယ် သို့မဟုတ် ✅ Done နှိပ်ပါ။`
   );
 }
+
 
 async function finishMediaUpdateFlow(ctx) {
   const flow = ctx.session.mediaFlow;
@@ -366,13 +474,15 @@ async function finishMediaUpdateFlow(ctx) {
     { new: true }
   );
 
+  await cleanupMediaUi(ctx, { includeCurrentCallback: true });
   resetMediaSession(ctx);
-  await ctx.answerCbQuery('Media update ပြီးပါပြီ။');
+  await ctx.answerCbQuery('Media update ပြီးပါပြီ။').catch(() => {});
   await ctx.reply(flow.mode === 'replace' ? '♻️ Profile media ကို အသစ်နဲ့ အစားထိုးပြီးပါပြီ။' : '➕ Profile media အသစ်ထပ်ထည့်ပြီးပါပြီ။', mainMenuKeyboard());
   await showMyProfile(ctx);
 }
 
 async function cancelMediaFlows(ctx) {
+  await cleanupMediaUi(ctx, { includeCurrentCallback: true });
   resetMediaSession(ctx);
   resetProfileSession(ctx);
   await ctx.answerCbQuery().catch(() => {});
@@ -407,23 +517,32 @@ function registerProfileCommands(bot) {
 
   bot.action('edit:profile', async (ctx) => {
     await ctx.answerCbQuery();
+    await cleanupProfileUi(ctx, { includeCurrentCallback: true });
     await startProfileFlow(ctx, true);
   });
 
   bot.action('media:manage', async (ctx) => {
     await ctx.answerCbQuery();
+    await cleanupProfileUi(ctx, { includeCurrentCallback: true });
     await startMediaManage(ctx);
   });
 
   bot.action(/^media:start:(add|replace)$/, async (ctx) => {
     await ctx.answerCbQuery();
+    await cleanupMediaUi(ctx, { includeCurrentCallback: true });
     await startMediaUpdateFlow(ctx, ctx.match[1]);
   });
 
   bot.action('media:done', async (ctx) => {
     ensureSessionDefaults(ctx);
     if (ctx.session.profileFlow?.active && ctx.session.profileFlow.step === 'media') {
+      const media = Array.isArray(ctx.session.profileFlow.data?.media) ? ctx.session.profileFlow.data.media : [];
+      if (!media.length) {
+        await ctx.answerCbQuery('အနည်းဆုံး media 1 ခု ပို့ပါ။', { show_alert: true });
+        return;
+      }
       await ctx.answerCbQuery();
+      await cleanupMediaUi(ctx, { includeCurrentCallback: true });
       await finishProfileFlow(ctx);
       return;
     }
@@ -560,7 +679,8 @@ function registerProfileCommands(bot) {
     }
 
     if (flow.step === 'media') {
-      await ctx.reply('ဒီအဆင့်မှာ photo/video ပဲ ပို့ပေးပါ။ ပြီးရင် ✅ Done ကိုနှိပ်ပါ။', { reply_markup: mediaDoneKeyboard().reply_markup });
+      await cleanupMediaUi(ctx);
+      await promptMediaUpload(ctx, 'ဒီအဆင့်မှာ photo/video ပဲ ပို့ပေးပါ။');
       return;
     }
 
@@ -570,7 +690,8 @@ function registerProfileCommands(bot) {
   bot.on('message', async (ctx, next) => {
     ensureSessionDefaults(ctx);
     if (ctx.session.mediaFlow?.active) {
-      await ctx.reply('ဒီအဆင့်မှာ photo/video ပဲ ပို့ပေးပါ။ ပြီးရင် ✅ Done ကိုနှိပ်ပါ။', { reply_markup: mediaDoneKeyboard().reply_markup });
+      await cleanupMediaUi(ctx);
+      await promptMediaUpload(ctx, 'ဒီအဆင့်မှာ photo/video ပဲ ပို့ပေးပါ။');
       return;
     }
     return next();
