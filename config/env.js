@@ -4,6 +4,11 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;
 const WEBHOOK_URL = String(process.env.WEBHOOK_URL || '').trim();
 const PORT = parseInt(process.env.PORT || '10000', 10);
+const CUPID_DATABASE_CHANNEL_ID = Number(process.env.CUPID_DATABASE_CHANNEL_ID || '-1004378314304');
+const MAX_PROFILE_MEDIA = Math.min(
+  3,
+  Math.max(1, parseInt(process.env.MAX_PROFILE_MEDIA || '3', 10) || 3)
+);
 const ADMIN_IDS = String(process.env.ADMIN_ID || process.env.ADMIN_IDS || '')
   .split(',')
   .map((value) => Number(String(value).trim()))
@@ -26,6 +31,9 @@ function validateEnv() {
   if (!/^https:\/\//i.test(WEBHOOK_URL) || WEBHOOK_URL.includes('/webhook')) {
     throw new Error('WEBHOOK_URL must be base https URL only, example: https://your-app.onrender.com');
   }
+  if (!Number.isFinite(CUPID_DATABASE_CHANNEL_ID) || CUPID_DATABASE_CHANNEL_ID === 0) {
+    throw new Error('CUPID_DATABASE_CHANNEL_ID must be a valid Telegram channel id, example: -1004378314304');
+  }
 }
 
 module.exports = {
@@ -35,5 +43,7 @@ module.exports = {
   PORT,
   ADMIN_IDS,
   ALLOWED_STATUSES,
+  CUPID_DATABASE_CHANNEL_ID,
+  MAX_PROFILE_MEDIA,
   validateEnv,
 };
