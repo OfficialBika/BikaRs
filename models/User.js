@@ -17,6 +17,8 @@ const mediaSchema = new mongoose.Schema(
 const userSchema = new mongoose.Schema(
   {
     telegramId: { type: Number, unique: true, required: true, index: true },
+    // Public sequential profile ID. Assigned only after profile is complete.
+    profileId: { type: Number, unique: true, sparse: true, index: true },
     username: { type: String, default: '' },
     tgFirstName: { type: String, default: '' },
     tgLastName: { type: String, default: '' },
