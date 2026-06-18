@@ -4,6 +4,12 @@ const Report = require('../models/Report');
 const { isAdmin } = require('../middlewares/auth');
 const { escapeHtml } = require('../utils/escapeHtml');
 const { BUTTON_STYLE, callbackButton, inlineKeyboard } = require('../utils/keyboards');
+const {
+  startBroadcast,
+  stopBroadcast,
+  showBroadcastStatus,
+  resumeBroadcast,
+} = require('../utils/broadcast');
 
 function registerAdminCommands(bot) {
   bot.command('admin', async (ctx) => {
@@ -18,6 +24,7 @@ function registerAdminCommands(bot) {
         [callbackButton('📊 User Count', 'admin:count', BUTTON_STYLE.PRIMARY)],
         [callbackButton('🚨 Reported Profiles', 'admin:reports:0', BUTTON_STYLE.DANGER)],
         [callbackButton('📢 Broadcast Guide', 'admin:broadcast:help', BUTTON_STYLE.PRIMARY)],
+        [callbackButton('📡 Broadcast Status', 'admin:broadcast:status', BUTTON_STYLE.SUCCESS)],
       ]).reply_markup,
     });
   });
@@ -63,26 +70,22 @@ function registerAdminCommands(bot) {
 
   bot.command('broadcast', async (ctx) => {
     if (!isAdmin(ctx.from.id)) return;
-    const text = ctx.message.text.replace(/^\/broadcast\s*/i, '').trim();
-    if (!text) {
-      await ctx.reply('အသုံးပြုပုံ - /broadcast your message');
-      return;
-    }
+    await startBroadcast(ctx, bot);
+  });
 
-    const users = await User.find({ isBanned: false }).lean();
-    let ok = 0;
-    let fail = 0;
+  bot.command(['stop_broadcast', 'stop_gcast'], async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await stopBroadcast(ctx);
+  });
 
-    for (const user of users) {
-      try {
-        await bot.telegram.sendMessage(user.telegramId, `📢 Broadcast\n\n${text}`);
-        ok += 1;
-      } catch (_) {
-        fail += 1;
-      }
-    }
+  bot.command('broadcast_status', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await showBroadcastStatus(ctx);
+  });
 
-    await ctx.reply(`Broadcast ပြီးပါပြီ။\n✅ Success: ${ok}\n❌ Failed: ${fail}`);
+  bot.command('broadcast_resume', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await resumeBroadcast(ctx, bot);
   });
 
   bot.action('admin:count', async (ctx) => {
@@ -114,7 +117,26 @@ function registerAdminCommands(bot) {
   bot.action('admin:broadcast:help', async (ctx) => {
     if (!isAdmin(ctx.from.id)) return;
     await ctx.answerCbQuery();
-    await ctx.reply('📢 Broadcast အသုံးပြုပုံ\n/broadcast your message here');
+    await ctx.reply([
+      '📢 <b>Pro Broadcast Guide</b>',
+      '',
+      'ပို့ချင်တဲ့ message ကို reply လုပ်ပြီး /broadcast ရိုက်ပါ။',
+      '',
+      '<code>/broadcast</code> - clean copy ပို့မယ်',
+      '<code>/broadcast -forward</code> - forward အနေနဲ့ပို့မယ်',
+      '<code>/broadcast -completed</code> - profile complete users ကိုပဲပို့မယ်',
+      '<code>/stop_broadcast</code> - active broadcast ရပ်မယ်',
+      '<code>/broadcast_status</code> - latest status ကြည့်မယ်',
+      '<code>/broadcast_resume &lt;jobId&gt;</code> - ရပ်သွားတဲ့ job ကို resume လုပ်မယ်',
+      '',
+      'ပို့ပြီးသား users တွေကို delivery log နဲ့သိမ်းထားတဲ့အတွက် resume လုပ်ရင် ထပ်မပို့ပါ။',
+    ].join('\n'), { parse_mode: 'HTML' });
+  });
+
+  bot.action('admin:broadcast:status', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await ctx.answerCbQuery();
+    await showBroadcastStatus(ctx);
   });
 
   bot.action(/^admin:reports:(\d+)$/, async (ctx) => {
