@@ -233,8 +233,6 @@ async function showMyProfile(ctx) {
 
 
 async function showProfileByProfileId(ctx, profileId) {
-  if (!(await requirePrivateChat(ctx))) return;
-
   const id = Number(profileId);
   if (!isValidProfileId(id)) {
     await ctx.reply('အသုံးပြုပုံ - /check <profileId>\nဥပမာ - /check 1');
