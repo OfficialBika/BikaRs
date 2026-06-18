@@ -1,6 +1,17 @@
 const { Markup } = require('telegraf');
-const { CUPID_DATABASE_CHANNEL_ID, MAX_PROFILE_MEDIA } = require('../config/env');
+const {
+  CUPID_DATABASE_CHANNEL_ID,
+  SUPPORT_CHANNEL_ID,
+  MAX_PROFILE_MEDIA,
+} = require('../config/env');
 const { escapeHtml } = require('./escapeHtml');
+const {
+  BUTTON_STYLE,
+  urlButton,
+  inlineKeyboard,
+} = require('./keyboards');
+
+let cachedBotUsername = '';
 
 function getDisplayName(from = {}) {
   const fullName = [from.first_name, from.last_name].filter(Boolean).join(' ').trim();
@@ -151,7 +162,7 @@ async function editOrSendSingleMedia(ctx, media, caption, keyboard) {
   try {
     if (ctx.updateType === 'callback_query') {
       await ctx.editMessageMedia(mediaPayload, { reply_markup: keyboard?.reply_markup });
-      return;
+      return ctx.callbackQuery?.message || null;
     }
   } catch (_) {
     try {
@@ -159,7 +170,7 @@ async function editOrSendSingleMedia(ctx, media, caption, keyboard) {
     } catch (_) {}
   }
 
-  await sendSingleMedia(ctx, media, caption, keyboard);
+  return sendSingleMedia(ctx, media, caption, keyboard);
 }
 
 async function sendProfileCard(ctx, user, caption, keyboard, options = {}) {
@@ -169,40 +180,49 @@ async function sendProfileCard(ctx, user, caption, keyboard, options = {}) {
     if (ctx.updateType === 'callback_query') {
       try {
         await ctx.editMessageText(caption, { parse_mode: 'HTML', reply_markup: keyboard?.reply_markup });
-        return;
+        return [ctx.callbackQuery?.message].filter(Boolean);
       } catch (_) {}
     }
-    await ctx.reply(caption, { parse_mode: 'HTML', reply_markup: keyboard?.reply_markup });
-    return;
+    const msg = await ctx.reply(caption, { parse_mode: 'HTML', reply_markup: keyboard?.reply_markup });
+    return [msg].filter(Boolean);
   }
 
   if (media.length === 1 || !options.album) {
-    await editOrSendSingleMedia(ctx, media[0], caption, keyboard);
-    return;
+    const msg = await editOrSendSingleMedia(ctx, media[0], caption, keyboard);
+    return [msg].filter(Boolean);
   }
 
-  // Album messages cannot keep inline keyboard reliably, so send media first and
-  // then send the profile caption + buttons as a separate message.
+  // Telegram media groups cannot hold one inline keyboard for the whole album.
+  // Stable UI: send all profile media first, then send profile info + buttons below it.
   if (ctx.updateType === 'callback_query') {
     try { await ctx.deleteMessage(); } catch (_) {}
   }
 
+  const sentMessages = [];
   try {
-    await ctx.replyWithMediaGroup(media.map(toInputMedia));
+    const mediaMessages = await ctx.replyWithMediaGroup(media.map(toInputMedia));
+    if (Array.isArray(mediaMessages)) sentMessages.push(...mediaMessages);
   } catch (_) {
     for (const item of media) {
       try {
-        if (item.type === 'video') await ctx.replyWithVideo(item.fileId);
-        else await ctx.replyWithPhoto(item.fileId);
+        const msg = item.type === 'video'
+          ? await ctx.replyWithVideo(item.fileId)
+          : await ctx.replyWithPhoto(item.fileId);
+        sentMessages.push(msg);
       } catch (error) {
         if (item.backupChatId && item.backupMessageId) {
-          try { await ctx.telegram.copyMessage(ctx.chat.id, item.backupChatId, item.backupMessageId); } catch (_) {}
+          try {
+            const copied = await ctx.telegram.copyMessage(ctx.chat.id, item.backupChatId, item.backupMessageId);
+            sentMessages.push(copied);
+          } catch (_) {}
         }
       }
     }
   }
 
-  await ctx.reply(caption, { parse_mode: 'HTML', reply_markup: keyboard?.reply_markup });
+  const textMessage = await ctx.reply(caption, { parse_mode: 'HTML', reply_markup: keyboard?.reply_markup });
+  sentMessages.push(textMessage);
+  return sentMessages.filter(Boolean);
 }
 
 function mediaDoneKeyboard() {
@@ -214,6 +234,92 @@ function mediaDoneKeyboard() {
   ]);
 }
 
+async function getBotUsername(ctx) {
+  if (cachedBotUsername) return cachedBotUsername;
+  try {
+    const me = await ctx.telegram.getMe();
+    cachedBotUsername = me?.username || '';
+  } catch (_) {}
+  return cachedBotUsername;
+}
+
+function buildNewUserAlertText(user) {
+  const mediaCount = normalizeProfileMedia(user).length;
+  return [
+    '🆕 <b>New User Alert</b>',
+    '',
+    `👤 User: ${mentionFromProfile(user)}`,
+    `🆔 Telegram ID: <code>${user.telegramId || '-'}</code>`,
+    `🧾 Username: ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    '',
+    '💘 <b>User Info</b>',
+    `👤 နာမည်: <b>${escapeHtml(user.profileName || '-')}</b>`,
+    `⚧ လိင်: <b>${escapeHtml(user.gender || '-')}</b>`,
+    `💞 Status: <b>${escapeHtml(user.relationshipStatus || '-')}</b>`,
+    `🎂 အသက်: <b>${escapeHtml(user.age || '-')}</b>`,
+    `📏 အရပ်: <b>${escapeHtml(user.height || '-')}</b>`,
+    `📍 နေရပ်: <b>${escapeHtml(user.address || '-')}</b>`,
+    `🎯 ဝါသနာ: <b>${escapeHtml(user.hobby || '-')}</b>`,
+    `🖼 Profile Media: <b>${mediaCount}/${MAX_PROFILE_MEDIA}</b>`,
+    '',
+    `🕒 Created: <code>${new Date().toISOString()}</code>`,
+  ].join('\n');
+}
+
+async function sendMediaToSupportChannel(ctx, media) {
+  const sent = [];
+  if (!media.length) return sent;
+
+  try {
+    if (media.length > 1) {
+      const mediaMessages = await ctx.telegram.sendMediaGroup(SUPPORT_CHANNEL_ID, media.map(toInputMedia));
+      if (Array.isArray(mediaMessages)) sent.push(...mediaMessages);
+      return sent;
+    }
+
+    const item = media[0];
+    const msg = item.type === 'video'
+      ? await ctx.telegram.sendVideo(SUPPORT_CHANNEL_ID, item.fileId)
+      : await ctx.telegram.sendPhoto(SUPPORT_CHANNEL_ID, item.fileId);
+    sent.push(msg);
+    return sent;
+  } catch (error) {
+    for (const item of media) {
+      if (item.backupChatId && item.backupMessageId) {
+        try {
+          const copied = await ctx.telegram.copyMessage(SUPPORT_CHANNEL_ID, item.backupChatId, item.backupMessageId);
+          sent.push(copied);
+        } catch (_) {}
+      }
+    }
+    return sent;
+  }
+}
+
+async function sendNewUserAlertToSupportChannel(ctx, user) {
+  if (!Number.isFinite(SUPPORT_CHANNEL_ID) || SUPPORT_CHANNEL_ID === 0) return;
+
+  try {
+    const media = normalizeProfileMedia(user);
+    await sendMediaToSupportChannel(ctx, media);
+
+    const botUsername = await getBotUsername(ctx);
+    const startUrl = botUsername
+      ? `https://t.me/${botUsername}?start=profile_${user.telegramId}`
+      : `tg://user?id=${user.telegramId}`;
+
+    await ctx.telegram.sendMessage(SUPPORT_CHANNEL_ID, buildNewUserAlertText(user), {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: inlineKeyboard([
+        [urlButton('💘 Start To DM', startUrl, BUTTON_STYLE.SUCCESS)],
+      ]).reply_markup,
+    });
+  } catch (error) {
+    console.error('NEW_USER_ALERT_ERROR:', error);
+  }
+}
+
 module.exports = {
   mentionFromTelegramUser,
   mentionFromProfile,
@@ -221,6 +327,8 @@ module.exports = {
   backupMediaToChannel,
   buildMediaMetadata,
   normalizeProfileMedia,
+  toInputMedia,
   sendProfileCard,
   mediaDoneKeyboard,
+  sendNewUserAlertToSupportChannel,
 };
