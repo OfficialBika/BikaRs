@@ -50,6 +50,7 @@ async function sendHelp(ctx) {
       '• ✏️ Profile ပြင်ရန် - ကိုယ့် profile ပြင်ဆင်ရန်',
       '• 🖼 ပုံထည့်/ပြင်မယ် - profile photo/video ထပ်ထည့်ရန် သို့မဟုတ် အစားထိုးရန်',
       '• 🎲 ကျပန်း Profile ကြည့်ရန် - random profile ကြည့်ရန်',
+      '• /check <profileId> - Profile ID နဲ့ profile ကြည့်ရန်',
       '',
       'Privacy Commands:',
       '• /privacy - Privacy အချက်အလက်ကြည့်ရန်',

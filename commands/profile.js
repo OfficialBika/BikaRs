@@ -1,5 +1,7 @@
 const { Markup } = require('telegraf');
 const User = require('../models/User');
+const Reaction = require('../models/Reaction');
+const Report = require('../models/Report');
 const { ALLOWED_STATUSES, MAX_PROFILE_MEDIA } = require('../config/env');
 const { requirePrivateChat } = require('../middlewares/privateOnly');
 const { escapeHtml, safeTextLength } = require('../utils/escapeHtml');
@@ -13,6 +15,8 @@ const {
   genderLabel,
   buildProfileCaption,
   buildProfileButtons,
+  buildDirectProfileButtons,
+  reactionEmoji,
 } = require('../utils/keyboards');
 const {
   extractMediaFromMessage,
@@ -23,6 +27,7 @@ const {
   mediaDoneKeyboard,
   sendNewUserAlertToSupportChannel,
 } = require('../utils/media');
+const { ensureProfileId, isValidProfileId } = require('../utils/profileIds');
 
 function resetProfileSession(ctx) {
   ctx.session.profileFlow = {
@@ -189,6 +194,7 @@ function buildMyProfileCaption(user) {
   return [
     '👤 <b>ကျွန်ုပ်၏ Profile</b>',
     '',
+    `🆔 <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
     `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
     `⚧ <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
     `💞 <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
@@ -223,6 +229,133 @@ async function showMyProfile(ctx) {
   await cleanupProfileUi(ctx);
   const sentMessages = await sendProfileCard(ctx, user, buildMyProfileCaption(user), myProfileKeyboard(user), { album: true });
   rememberProfileUiMessages(ctx, sentMessages);
+}
+
+
+async function showProfileByProfileId(ctx, profileId) {
+  if (!(await requirePrivateChat(ctx))) return;
+
+  const id = Number(profileId);
+  if (!isValidProfileId(id)) {
+    await ctx.reply('အသုံးပြုပုံ - /check <profileId>\nဥပမာ - /check 1');
+    return;
+  }
+
+  const user = await User.findOne({
+    profileId: id,
+    isProfileComplete: true,
+    isBanned: false,
+  }).lean();
+
+  if (!user) {
+    await ctx.reply(`Profile ID ${id} ကို မတွေ့ပါ။`, mainMenuKeyboard());
+    return;
+  }
+
+  await cleanupProfileUi(ctx, { includeCurrentCallback: true });
+  const sentMessages = await sendProfileCard(ctx, user, buildProfileCaption(user, 0, 1), buildDirectProfileButtons(user), { album: true });
+  rememberProfileUiMessages(ctx, sentMessages);
+}
+
+async function applyDirectProfileReaction(ctx, type, targetId) {
+  const fromId = Number(ctx.from.id);
+  const targetTelegramId = Number(targetId);
+
+  if (fromId === targetTelegramId) {
+    await ctx.answerCbQuery('ကိုယ့် profile ကို reaction မပေးနိုင်ပါ။', { show_alert: true });
+    return null;
+  }
+
+  const targetUser = await User.findOne({
+    telegramId: targetTelegramId,
+    isProfileComplete: true,
+    isBanned: false,
+  });
+
+  if (!targetUser) {
+    await ctx.answerCbQuery('Profile မတွေ့ပါ။', { show_alert: true });
+    return null;
+  }
+
+  const existing = await Reaction.findOne({ fromUserId: fromId, toUserId: targetTelegramId });
+  let notifyReactionType = '';
+  let message = '';
+
+  if (!existing) {
+    await Reaction.create({
+      fromUserId: fromId,
+      toUserId: targetTelegramId,
+      type,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    targetUser.reactions[type] += 1;
+    notifyReactionType = type;
+    message = `${reactionEmoji(type)} reaction ပေးပြီးပါပြီ။`;
+  } else if (existing.type === type) {
+    await Reaction.deleteOne({ _id: existing._id });
+    targetUser.reactions[type] = Math.max(0, (targetUser.reactions[type] || 0) - 1);
+    message = `${reactionEmoji(type)} reaction ကို ပြန်ဖျက်ပြီးပါပြီ။`;
+  } else {
+    targetUser.reactions[existing.type] = Math.max(0, (targetUser.reactions[existing.type] || 0) - 1);
+    existing.type = type;
+    existing.updatedAt = new Date();
+    await existing.save();
+
+    targetUser.reactions[type] += 1;
+    notifyReactionType = type;
+    message = `${reactionEmoji(type)} reaction ကို ပြောင်းလဲပြီးပါပြီ။`;
+  }
+
+  targetUser.updatedAt = new Date();
+  await targetUser.save();
+
+  if (notifyReactionType) {
+    try {
+      const emoji = reactionEmoji(notifyReactionType);
+      const totalCount = targetUser.reactions[notifyReactionType] || 0;
+
+      await ctx.telegram.sendMessage(
+        targetUser.telegramId,
+        `သင့် profile တွင် ${emoji} reaction အသစ်တစ်ခု ရရှိထားပါသည်။\nစုစုပေါင်း ${emoji} : ${totalCount}`
+      );
+    } catch (_) {}
+  }
+
+  await ctx.answerCbQuery(message);
+  return targetUser;
+}
+
+async function reportDirectProfile(ctx, targetId) {
+  const fromId = Number(ctx.from.id);
+  const targetTelegramId = Number(targetId);
+
+  if (fromId === targetTelegramId) {
+    await ctx.answerCbQuery('ကိုယ့် profile ကို report မလုပ်နိုင်ပါ။', { show_alert: true });
+    return;
+  }
+
+  const targetUser = await User.findOne({
+    telegramId: targetTelegramId,
+    isProfileComplete: true,
+  }).lean();
+
+  if (!targetUser) {
+    await ctx.answerCbQuery('Profile မတွေ့ပါ။', { show_alert: true });
+    return;
+  }
+
+  await Report.findOneAndUpdate(
+    { reporterId: fromId, targetUserId: targetTelegramId },
+    {
+      $set: { reason: 'အတုအယောင် profile', status: 'pending', updatedAt: new Date() },
+      $setOnInsert: { createdAt: new Date() },
+    },
+    { upsert: true, new: true }
+  );
+
+  await ctx.answerCbQuery('🚨 Report ပို့ပြီးပါပြီ။');
 }
 
 async function startProfileFlow(ctx, editing = false) {
@@ -294,7 +427,7 @@ async function finishProfileFlow(ctx) {
   const existingUser = await User.findOne({ telegramId: Number(ctx.from.id) }).lean();
   const wasComplete = Boolean(existingUser?.isProfileComplete);
 
-  const savedUser = await User.findOneAndUpdate(
+  let savedUser = await User.findOneAndUpdate(
     { telegramId: Number(ctx.from.id) },
     {
       $set: {
@@ -319,6 +452,8 @@ async function finishProfileFlow(ctx) {
     },
     { upsert: true, new: true }
   );
+
+  savedUser = await ensureProfileId(savedUser);
 
   if (!wasComplete) {
     await sendNewUserAlertToSupportChannel(ctx, savedUser);
@@ -515,6 +650,26 @@ function registerProfileCommands(bot) {
   bot.hears('👤 ကျွန်ုပ်၏ Profile', showMyProfile);
   bot.hears('🖼 ပုံထည့်/ပြင်မယ်', startMediaManage);
 
+  bot.command('check', async (ctx) => {
+    const parts = String(ctx.message?.text || '').trim().split(/\s+/);
+    await showProfileByProfileId(ctx, parts[1]);
+  });
+
+  bot.action(/^rxcheck:(like|love|laugh):(\d+)$/, async (ctx) => {
+    if (!(await requirePrivateChat(ctx))) return;
+    const [, type, targetId] = ctx.match;
+    const targetUser = await applyDirectProfileReaction(ctx, type, targetId);
+    if (targetUser?.profileId) {
+      await showProfileByProfileId(ctx, targetUser.profileId);
+    }
+  });
+
+  bot.action(/^reportcheck:(\d+)$/, async (ctx) => {
+    if (!(await requirePrivateChat(ctx))) return;
+    const [, targetId] = ctx.match;
+    await reportDirectProfile(ctx, targetId);
+  });
+
   bot.action('edit:profile', async (ctx) => {
     await ctx.answerCbQuery();
     await cleanupProfileUi(ctx, { includeCurrentCallback: true });
@@ -708,6 +863,7 @@ module.exports = {
   getBrowseList,
   showGenderList,
   showMyProfile,
+  showProfileByProfileId,
   startProfileFlow,
   finishProfileFlow,
 };
