@@ -59,9 +59,9 @@ function mainMenuKeyboard() {
     ],
     [
       replyButton('✏️ Profile ပြင်ရန်', BUTTON_STYLE.PRIMARY),
-      replyButton('🎲 ကျပန်း Profile ကြည့်ရန်', BUTTON_STYLE.PRIMARY),
+      replyButton('🖼 ပုံထည့်/ပြင်မယ်', BUTTON_STYLE.SUCCESS),
     ],
-    [replyButton('ℹ️ အကူအညီ', BUTTON_STYLE.PRIMARY)],
+    [replyButton('🎲 ကျပန်း Profile ကြည့်ရန်', BUTTON_STYLE.PRIMARY), replyButton('ℹ️ အကူအညီ', BUTTON_STYLE.PRIMARY)],
   ]);
 }
 
@@ -95,6 +95,7 @@ function buildProfileCaption(user, index, total) {
     `📍 <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
     `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
     `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `🖼 <b>Media:</b> ${Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0)}/3`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
     '',
