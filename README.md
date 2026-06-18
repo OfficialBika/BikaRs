@@ -4,6 +4,8 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 
 ## Features
 
+- Start screen with Support Group, Support Channel, and Main Menu buttons
+- Main reply menu appears only after tapping Main Menu
 - Profile create/edit flow
 - Profile photo/video media support, 1 to 3 items per user
 - MongoDB stores media metadata only: `fileId`, `fileUniqueId`, backup channel id, and backup message id
@@ -20,6 +22,8 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 - Broadcast
 - Hide/show own profile
 - Delete own profile
+- Support Channel New User Alert after first profile completion
+- New User Alert includes all profile media, full user info, clickable mention, and Start To DM button
 - Render webhook deployment support
 
 ## Project Structure
@@ -64,9 +68,42 @@ PORT=10000
 ADMIN_IDS=123456789,987654321
 CUPID_DATABASE_CHANNEL_ID=-1004378314304
 MAX_PROFILE_MEDIA=3
+SUPPORT_CHANNEL_ID=-1001977849806
+SUPPORT_GROUP_ID=-1001771277613
+SUPPORT_CHANNEL_URL=
+SUPPORT_GROUP_URL=
 ```
 
 `WEBHOOK_URL` must be the base HTTPS URL only. Do not add `/webhook` manually.
+
+
+## Support Group / Support Channel Setup
+
+The `/start` message sends only an inline keyboard:
+
+```txt
+Support Group | Support Channel
+Main Menu
+```
+
+- Support Group and Support Channel buttons use `primary` style.
+- Main Menu uses `success` style.
+- The normal reply menu appears only after tapping Main Menu.
+
+For private support group/channel IDs, add the bot as admin with Invite Users permission. If `SUPPORT_GROUP_URL` or `SUPPORT_CHANNEL_URL` is empty, the bot will try to create an invite link from the ID when the button is tapped. If your group/channel already has a public username or invite link, put it directly in the optional URL env values.
+
+## New User Alert
+
+After a user completes a profile for the first time, the bot posts to `SUPPORT_CHANNEL_ID`:
+
+```txt
+Profile all media
+New User Alert
+Full user info
+Start To DM button
+```
+
+The support channel post includes a clickable Telegram mention using `tg://user?id=<telegramId>` and a `Start To DM` button pointing to the bot DM.
 
 ## Cupid Database Channel Setup
 
@@ -88,6 +125,7 @@ Bot posts each media to Cupid Database channel
 Bot stores fileId + backup message id in MongoDB
 User presses Done
 Profile is saved
+Bot sends New User Alert to Support Channel if this is the user's first completed profile
 ```
 
 Media edit menu:
