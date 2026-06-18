@@ -1,4 +1,4 @@
-const { Markup } = require('telegraf');
+const { BUTTON_STYLE, inlineKeyboard, urlButton } = require('../utils/keyboards');
 
 function isPrivateChat(ctx) {
   return ctx.chat?.type === 'private';
@@ -7,7 +7,7 @@ function isPrivateChat(ctx) {
 async function askToUseDm(ctx) {
   const botUsername = ctx.botInfo?.username;
   const buttons = botUsername
-    ? Markup.inlineKeyboard([[Markup.button.url('💬 Bot DM ဖွင့်ရန်', `https://t.me/${botUsername}`)]])
+    ? inlineKeyboard([[urlButton('💬 Bot DM ဖွင့်ရန်', `https://t.me/${botUsername}`, BUTTON_STYLE.PRIMARY)]])
     : undefined;
 
   await ctx.reply('ဒီ feature ကို Bot DM ထဲမှာပဲ အသုံးပြုနိုင်ပါတယ်။', buttons);
