@@ -13,6 +13,7 @@ const MAX_PROFILE_MEDIA = Math.min(
   3,
   Math.max(1, parseInt(process.env.MAX_PROFILE_MEDIA || '3', 10) || 3)
 );
+const REQUIRE_SUPPORT_JOIN = String(process.env.REQUIRE_SUPPORT_JOIN || 'true').trim().toLowerCase() !== 'false';
 const BROADCAST_DELAY_MS = Math.max(0, parseInt(process.env.BROADCAST_DELAY_MS || '150', 10) || 150);
 const BROADCAST_PROGRESS_EVERY = Math.max(1, parseInt(process.env.BROADCAST_PROGRESS_EVERY || '20', 10) || 20);
 const ADMIN_IDS = String(process.env.ADMIN_ID || process.env.ADMIN_IDS || '')
@@ -70,6 +71,7 @@ module.exports = {
   SUPPORT_CHANNEL_URL,
   SUPPORT_GROUP_URL,
   MAX_PROFILE_MEDIA,
+  REQUIRE_SUPPORT_JOIN,
   BROADCAST_DELAY_MS,
   BROADCAST_PROGRESS_EVERY,
   validateEnv,
