@@ -45,7 +45,7 @@ function startKeyboard() {
 function dmOnlyKeyboard(ctx) {
   const botUsername = ctx.botInfo?.username;
   if (!botUsername) return undefined;
-  return inlineKeyboard([[urlButton('💬 Bot DM ဖွင့်ရန်', `https://t.me/${botUsername}`, BUTTON_STYLE.PRIMARY)]]);
+  return inlineKeyboard([[urlButton('💬 Bot DM ဖွင့်ရန်', `https://t.me/${botUsername}?start=main`, BUTTON_STYLE.PRIMARY)]]);
 }
 
 async function sendGroupDmOnlyNotice(ctx) {
