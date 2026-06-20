@@ -27,8 +27,11 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 - Support Channel New User Alert after first profile completion
 - Support Channel New User Alert includes Profile ID
 - Admin report view includes target/reporter Profile ID
+- Reported Profiles view sends the target user profile media/photo together with the report info and admin buttons
 - New User Alert includes all profile media, full user info, clickable mention, and Start To DM button
 - Render webhook deployment support
+- Required Support Group + Support Channel join gate before using the bot in DM
+- Group chats never show the normal reply menu; `/start` in groups only shows a DM button
 
 ## Project Structure
 
@@ -50,7 +53,8 @@ BikaRs/
 │   └── BroadcastDelivery.js
 ├── middlewares/
 │   ├── auth.js
-│   └── privateOnly.js
+│   ├── privateOnly.js
+│   └── requiredMembership.js
 ├── commands/
 │   ├── start.js
 │   ├── profile.js
@@ -80,6 +84,7 @@ SUPPORT_CHANNEL_ID=-1001977849806
 SUPPORT_GROUP_ID=-1001771277613
 SUPPORT_CHANNEL_URL=
 SUPPORT_GROUP_URL=
+REQUIRE_SUPPORT_JOIN=true
 BROADCAST_DELAY_MS=150
 BROADCAST_PROGRESS_EVERY=20
 ```
@@ -171,6 +176,7 @@ Profile ID is displayed in:
 - My Profile
 - Support Channel New User Alert
 - Admin report notification/view
+- Reported Profiles admin view also sends target profile media/photo
 
 ## Local Run
 
@@ -296,3 +302,44 @@ BROADCAST_PROGRESS_EVERY=20
 ```
 
 Increase `BROADCAST_DELAY_MS` if Telegram flood limits happen often.
+
+## Required Support Join Gate
+
+This version includes a required membership gate.
+
+```env
+REQUIRE_SUPPORT_JOIN=true
+SUPPORT_CHANNEL_ID=-1001977849806
+SUPPORT_GROUP_ID=-1001771277613
+SUPPORT_CHANNEL_URL=
+SUPPORT_GROUP_URL=
+```
+
+When `REQUIRE_SUPPORT_JOIN=true`, normal users must join both the Support Group and Support Channel before using the bot in DM.
+
+Flow:
+
+```txt
+/start
+Support Group | Support Channel
+Main Menu
+```
+
+If the user taps Main Menu without joining both places, the bot shows:
+
+```txt
+Join Support Group
+Join Support Channel
+Joined / Check Again
+```
+
+Admins listed in `ADMIN_IDS` bypass this gate.
+
+Group behavior:
+
+- The normal reply menu is never shown in groups.
+- `/start` in a group only shows a DM button.
+- `/check <profileId>` can still work in groups, but the user must pass the required support membership check first.
+- Main Menu callback in a group is blocked and asks the user to use DM.
+
+For private support group/channel IDs, add the bot as admin with permission to create invite links. If you already have invite links, put them in `SUPPORT_GROUP_URL` and `SUPPORT_CHANNEL_URL`.

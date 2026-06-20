@@ -10,6 +10,8 @@ const {
   validateEnv,
 } = require('./config/env');
 const { authMiddleware } = require('./middlewares/auth');
+const { requirePrivateChat } = require('./middlewares/privateOnly');
+const { requiredMembershipMiddleware, requireSupportMembership } = require('./middlewares/requiredMembership');
 const { mainMenuKeyboard } = require('./utils/keyboards');
 const { registerStartCommands } = require('./commands/start');
 const {
@@ -31,6 +33,7 @@ mongoose.set('strictQuery', true);
 bot.use(session());
 bot.use(profileSessionMiddleware);
 bot.use(authMiddleware);
+bot.use(requiredMembershipMiddleware());
 
 registerStartCommands(bot);
 registerProfileCommands(bot);
@@ -39,6 +42,9 @@ registerPrivacyCommands(bot);
 registerAdminCommands(bot);
 
 bot.action('main:menu', async (ctx) => {
+  if (!(await requirePrivateChat(ctx))) return;
+  if (!(await requireSupportMembership(ctx))) return;
+
   await ctx.answerCbQuery();
   try {
     await ctx.deleteMessage();
@@ -49,7 +55,11 @@ bot.action('main:menu', async (ctx) => {
 bot.catch(async (err, ctx) => {
   console.error('BOT_ERROR:', err);
   try {
-    await ctx.reply('❌ Error တစ်ခု ဖြစ်သွားပါတယ်။ ခဏနေရင် ပြန်စမ်းကြည့်ပါ။', mainMenuKeyboard());
+    if (ctx.chat?.type === 'private') {
+      await ctx.reply('❌ Error တစ်ခု ဖြစ်သွားပါတယ်။ ခဏနေရင် ပြန်စမ်းကြည့်ပါ။', mainMenuKeyboard());
+    } else {
+      await ctx.reply('❌ Error တစ်ခု ဖြစ်သွားပါတယ်။ ခဏနေရင် ပြန်စမ်းကြည့်ပါ။');
+    }
   } catch (_) {}
 });
 
