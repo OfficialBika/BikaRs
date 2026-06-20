@@ -4,12 +4,100 @@ const Report = require('../models/Report');
 const { isAdmin } = require('../middlewares/auth');
 const { escapeHtml } = require('../utils/escapeHtml');
 const { BUTTON_STYLE, callbackButton, inlineKeyboard } = require('../utils/keyboards');
+const { sendProfileCard } = require('../utils/media');
 const {
   startBroadcast,
   stopBroadcast,
   showBroadcastStatus,
   resumeBroadcast,
 } = require('../utils/broadcast');
+
+
+function ensureAdminReportUiSession(ctx) {
+  if (!ctx.session) ctx.session = {};
+  if (!ctx.session.adminReportUi) ctx.session.adminReportUi = { messageIds: [] };
+}
+
+function normalizeMessageIds(messagesOrMessage) {
+  const items = Array.isArray(messagesOrMessage) ? messagesOrMessage : [messagesOrMessage];
+  return items
+    .map((message) => Number(message?.message_id || message))
+    .filter((id) => Number.isFinite(id) && id > 0);
+}
+
+function rememberAdminReportMessages(ctx, messagesOrMessage) {
+  ensureAdminReportUiSession(ctx);
+  const ids = normalizeMessageIds(messagesOrMessage);
+  ctx.session.adminReportUi.messageIds = [...new Set(ids)].slice(-30);
+}
+
+async function safeDeleteMessage(ctx, messageId) {
+  const id = Number(messageId);
+  if (!Number.isFinite(id) || id <= 0 || !ctx.chat?.id) return;
+  try {
+    await ctx.telegram.deleteMessage(ctx.chat.id, id);
+  } catch (_) {}
+}
+
+async function cleanupAdminReportUi(ctx, options = {}) {
+  ensureAdminReportUiSession(ctx);
+  const ids = Array.isArray(ctx.session.adminReportUi.messageIds)
+    ? [...ctx.session.adminReportUi.messageIds]
+    : [];
+  if (options.includeCurrentCallback && ctx.callbackQuery?.message?.message_id) {
+    ids.push(ctx.callbackQuery.message.message_id);
+  }
+  for (const id of [...new Set(ids)]) {
+    await safeDeleteMessage(ctx, id);
+  }
+  ctx.session.adminReportUi = { messageIds: [] };
+}
+
+function buildReportText(report, target, reporter, currentIndex, totalReports) {
+  return [
+    '🚨 <b>Reported Profile</b>',
+    '',
+    `Report: <b>${currentIndex + 1}/${totalReports}</b>`,
+    `Target Profile ID: <code>${target?.profileId || '-'}</code>`,
+    `Target Telegram ID: <code>${report.targetUserId}</code>`,
+    `Reporter Profile ID: <code>${reporter?.profileId || '-'}</code>`,
+    `Reporter Telegram ID: <code>${report.reporterId}</code>`,
+    `Target Name: ${escapeHtml(target?.profileName || 'Deleted User')}`,
+    `Reporter Name: ${escapeHtml(reporter?.profileName || reporter?.tgFirstName || 'Unknown')}`,
+    `Reason: ${escapeHtml(report.reason || '-')}`,
+    `Status: ${escapeHtml(report.status)}`,
+  ].join('\n');
+}
+
+function buildReportKeyboard(report, currentIndex, totalReports) {
+  return inlineKeyboard([
+    [
+      callbackButton('⬅️ Prev', `admin:reports:${Math.max(currentIndex - 1, 0)}`, BUTTON_STYLE.PRIMARY),
+      callbackButton('➡️ Next', `admin:reports:${Math.min(currentIndex + 1, totalReports - 1)}`, BUTTON_STYLE.PRIMARY),
+    ],
+    [
+      callbackButton('🚫 Ban Target', `admin:banreport:${report.targetUserId}`, BUTTON_STYLE.DANGER),
+      callbackButton('🗑 Delete Target', `admin:delreport:${report.targetUserId}`, BUTTON_STYLE.DANGER),
+    ],
+    [callbackButton('✅ Ignore Report', `admin:ignorereport:${report._id}`, BUTTON_STYLE.SUCCESS)],
+  ]);
+}
+
+async function sendReportedProfileCard(ctx, report, target, reporter, currentIndex, totalReports) {
+  const text = buildReportText(report, target, reporter, currentIndex, totalReports);
+  const keyboard = buildReportKeyboard(report, currentIndex, totalReports);
+
+  await cleanupAdminReportUi(ctx, { includeCurrentCallback: true });
+
+  if (target?.isProfileComplete && !target?.isBanned) {
+    const sentMessages = await sendProfileCard(ctx, target, text, keyboard, { album: true });
+    rememberAdminReportMessages(ctx, sentMessages);
+    return;
+  }
+
+  const msg = await ctx.reply(text, { parse_mode: 'HTML', reply_markup: keyboard.reply_markup });
+  rememberAdminReportMessages(ctx, msg);
+}
 
 function registerAdminCommands(bot) {
   bot.command('admin', async (ctx) => {
@@ -154,38 +242,8 @@ function registerAdminCommands(bot) {
     const target = await User.findOne({ telegramId: report.targetUserId }).lean();
     const reporter = await User.findOne({ telegramId: report.reporterId }).lean();
 
-    const text = [
-      '🚨 <b>Reported Profile</b>',
-      '',
-      `Report: <b>${currentIndex + 1}/${reports.length}</b>`,
-      `Target Profile ID: <code>${target?.profileId || '-'}</code>`,
-      `Target Telegram ID: <code>${report.targetUserId}</code>`,
-      `Reporter Profile ID: <code>${reporter?.profileId || '-'}</code>`,
-      `Reporter Telegram ID: <code>${report.reporterId}</code>`,
-      `Target Name: ${escapeHtml(target?.profileName || 'Deleted User')}`,
-      `Reporter Name: ${escapeHtml(reporter?.profileName || reporter?.tgFirstName || 'Unknown')}`,
-      `Reason: ${escapeHtml(report.reason || '-')}`,
-      `Status: ${escapeHtml(report.status)}`,
-    ].join('\n');
-
-    const keyboard = inlineKeyboard([
-      [
-        callbackButton('⬅️ Prev', `admin:reports:${Math.max(currentIndex - 1, 0)}`, BUTTON_STYLE.PRIMARY),
-        callbackButton('➡️ Next', `admin:reports:${Math.min(currentIndex + 1, reports.length - 1)}`, BUTTON_STYLE.PRIMARY),
-      ],
-      [
-        callbackButton('🚫 Ban Target', `admin:banreport:${report.targetUserId}`, BUTTON_STYLE.DANGER),
-        callbackButton('🗑 Delete Target', `admin:delreport:${report.targetUserId}`, BUTTON_STYLE.DANGER),
-      ],
-      [callbackButton('✅ Ignore Report', `admin:ignorereport:${report._id}`, BUTTON_STYLE.SUCCESS)],
-    ]);
-
     await ctx.answerCbQuery();
-    try {
-      await ctx.editMessageText(text, { parse_mode: 'HTML', reply_markup: keyboard.reply_markup });
-    } catch (_) {
-      await ctx.reply(text, { parse_mode: 'HTML', reply_markup: keyboard.reply_markup });
-    }
+    await sendReportedProfileCard(ctx, report, target, reporter, currentIndex, reports.length);
   });
 
   bot.action(/^admin:ignorereport:([a-f0-9]{24})$/i, async (ctx) => {

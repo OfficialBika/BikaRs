@@ -5,6 +5,8 @@ const {
   SUPPORT_CHANNEL_URL,
   SUPPORT_GROUP_URL,
 } = require('../config/env');
+const { isPrivateChat, requirePrivateChat } = require('../middlewares/privateOnly');
+const { requireSupportMembership } = require('../middlewares/requiredMembership');
 const {
   BUTTON_STYLE,
   callbackButton,
@@ -20,7 +22,8 @@ function startText() {
     'ဒီ bot မှာ ကိုယ့် profile ဖြည့်ပြီး photo/video 1-3 ခုထည့်နိုင်ပါတယ်။',
     'တခြား user များ၏ profile ကိုလည်း ကြည့်ရှုနိုင်ပါသည်။',
     '',
-    'အောက်က <b>Main Menu</b> ကိုနှိပ်ပြီး စတင်အသုံးပြုပါ။',
+    'အသုံးပြုရန် Support Group နှင့် Support Channel ကို join ထားရပါမယ်။',
+    'Join ပြီးမှ <b>Main Menu</b> ကိုနှိပ်ပြီး စတင်အသုံးပြုပါ။',
   ].join('\n');
 }
 
@@ -39,7 +42,23 @@ function startKeyboard() {
   ]);
 }
 
+function dmOnlyKeyboard(ctx) {
+  const botUsername = ctx.botInfo?.username;
+  if (!botUsername) return undefined;
+  return inlineKeyboard([[urlButton('💬 Bot DM ဖွင့်ရန်', `https://t.me/${botUsername}`, BUTTON_STYLE.PRIMARY)]]);
+}
+
+async function sendGroupDmOnlyNotice(ctx) {
+  const keyboard = dmOnlyKeyboard(ctx);
+  await ctx.reply('💘 Cupid Bot menu ကို DM ထဲမှာပဲ အသုံးပြုနိုင်ပါတယ်။', keyboard ? {
+    reply_markup: keyboard.reply_markup,
+  } : undefined);
+}
+
 async function sendHelp(ctx) {
+  if (!(await requirePrivateChat(ctx))) return;
+  if (!(await requireSupportMembership(ctx))) return;
+
   await ctx.reply(
     [
       'ℹ️ <b>အကူအညီ</b>',
@@ -63,7 +82,7 @@ async function sendHelp(ctx) {
       '• /ban (telegramId)',
       '• /unban (telegramId)',
       '• /deleteprofile (telegramId)',
-      '• /broadcast (your message)',
+      '• /broadcast (reply message)',
     ].join('\n'),
     {
       parse_mode: 'HTML',
@@ -126,7 +145,6 @@ async function openSupport(ctx, type) {
   }
 }
 
-
 async function clearReplyKeyboard(ctx) {
   try {
     const msg = await ctx.reply('⌛', Markup.removeKeyboard());
@@ -139,6 +157,12 @@ async function clearReplyKeyboard(ctx) {
 function registerStartCommands(bot) {
   bot.start(async (ctx) => {
     await clearReplyKeyboard(ctx);
+
+    if (!isPrivateChat(ctx)) {
+      await sendGroupDmOnlyNotice(ctx);
+      return;
+    }
+
     await ctx.reply(startText(), {
       parse_mode: 'HTML',
       reply_markup: startKeyboard().reply_markup,
@@ -147,6 +171,18 @@ function registerStartCommands(bot) {
 
   bot.action('support:group', async (ctx) => openSupport(ctx, 'group'));
   bot.action('support:channel', async (ctx) => openSupport(ctx, 'channel'));
+
+  bot.action('membership:check', async (ctx) => {
+    if (!(await requirePrivateChat(ctx))) return;
+    const ok = await requireSupportMembership(ctx);
+    if (!ok) return;
+
+    await ctx.answerCbQuery('✅ Join စစ်ဆေးမှုအောင်မြင်ပါပြီ။');
+    try {
+      await ctx.deleteMessage();
+    } catch (_) {}
+    await ctx.reply('✅ Support Group + Channel join ထားပြီးပါပြီ။\n🏠 Main Menu ကိုဖွင့်ပါ။', mainMenuKeyboard());
+  });
 
   bot.command('help', sendHelp);
   bot.hears('ℹ️ အကူအညီ', sendHelp);
