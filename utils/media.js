@@ -313,7 +313,7 @@ async function sendNewUserAlertToSupportChannel(ctx, user) {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
       reply_markup: inlineKeyboard([
-        [urlButton('💘 Start To DM', startUrl, BUTTON_STYLE.SUCCESS)],
+        [urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS)],
       ]).reply_markup,
     });
   } catch (error) {
