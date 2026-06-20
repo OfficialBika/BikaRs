@@ -51,6 +51,11 @@ function getCommand(ctx) {
   return command;
 }
 
+function isGroupAllowedCommand(ctx) {
+  const command = getCommand(ctx);
+  return command === 'start' || command === 'check';
+}
+
 function isAlwaysAllowed(ctx) {
   if (ctx.updateType === 'callback_query') {
     const data = String(ctx.callbackQuery?.data || '');
@@ -103,7 +108,7 @@ async function buildJoinKeyboard(ctx) {
 async function sendDmButton(ctx, text) {
   const botUsername = ctx.botInfo?.username;
   const keyboard = botUsername
-    ? inlineKeyboard([[urlButton('💬 Bot DM ဖွင့်ရန်', `https://t.me/${botUsername}`, BUTTON_STYLE.PRIMARY)]])
+    ? inlineKeyboard([[urlButton('💬 Bot DM ဖွင့်ရန်', `https://t.me/${botUsername}?start=main`, BUTTON_STYLE.PRIMARY)]])
     : undefined;
 
   await ctx.reply(text, keyboard ? { reply_markup: keyboard.reply_markup } : undefined).catch(() => {});
@@ -207,6 +212,24 @@ function requiredMembershipMiddleware() {
     if (!isEnabled()) return next();
     if (!ctx.from?.id) return next();
     if (isAdmin(ctx.from.id)) return next();
+
+    // In groups/supergroups, keep the bot quiet. Only /start and /check are allowed.
+    // This prevents reply menus and join-gate prompts from spamming group chats.
+    if (!isPrivateChat(ctx)) {
+      if (ctx.updateType === 'callback_query') {
+        await ctx.answerCbQuery('DM ထဲမှာပဲ အသုံးပြုနိုင်ပါတယ်။', { show_alert: true }).catch(() => {});
+        return;
+      }
+
+      if (!isGroupAllowedCommand(ctx)) return;
+
+      if (getCommand(ctx) === 'start') return next();
+
+      // /check is allowed in groups, but still requires Support Group + Channel membership.
+      if (!(await requireSupportMembership(ctx))) return;
+      return next();
+    }
+
     if (isAlwaysAllowed(ctx)) return next();
     if (!isActionableUpdate(ctx)) return next();
 
