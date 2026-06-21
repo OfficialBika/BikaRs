@@ -16,6 +16,7 @@ const MAX_PROFILE_MEDIA = Math.min(
 const REQUIRE_SUPPORT_JOIN = String(process.env.REQUIRE_SUPPORT_JOIN || 'true').trim().toLowerCase() !== 'false';
 const BROADCAST_DELAY_MS = Math.max(0, parseInt(process.env.BROADCAST_DELAY_MS || '150', 10) || 150);
 const BROADCAST_PROGRESS_EVERY = Math.max(1, parseInt(process.env.BROADCAST_PROGRESS_EVERY || '20', 10) || 20);
+const PREMIUM_OWNER_ID = Number(process.env.PREMIUM_OWNER_ID || '8251006975');
 const ADMIN_IDS = String(process.env.ADMIN_ID || process.env.ADMIN_IDS || '')
   .split(',')
   .map((value) => Number(String(value).trim()))
@@ -56,7 +57,11 @@ function validateEnv() {
   }
   validateOptionalUrl('SUPPORT_CHANNEL_URL', SUPPORT_CHANNEL_URL);
   validateOptionalUrl('SUPPORT_GROUP_URL', SUPPORT_GROUP_URL);
+  if (!Number.isFinite(PREMIUM_OWNER_ID) || PREMIUM_OWNER_ID <= 0) {
+    throw new Error('PREMIUM_OWNER_ID must be a valid Telegram user id');
+  }
 }
+
 
 module.exports = {
   BOT_TOKEN,
@@ -74,5 +79,6 @@ module.exports = {
   REQUIRE_SUPPORT_JOIN,
   BROADCAST_DELAY_MS,
   BROADCAST_PROGRESS_EVERY,
+  PREMIUM_OWNER_ID,
   validateEnv,
 };
