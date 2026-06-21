@@ -7,6 +7,7 @@ const { requirePrivateChat } = require('../middlewares/privateOnly');
 const { escapeHtml, safeTextLength } = require('../utils/escapeHtml');
 const {
   BUTTON_STYLE,
+  premiumEmoji,
   callbackButton,
   inlineKeyboard,
   replyButton,
@@ -28,6 +29,7 @@ const {
   sendNewUserAlertToSupportChannel,
 } = require('../utils/media');
 const { ensureProfileId, isValidProfileId } = require('../utils/profileIds');
+const { attachPremiumToUser, formatPremiumUntil } = require('../utils/premium');
 
 function resetProfileSession(ctx) {
   ctx.session.profileFlow = {
@@ -168,9 +170,10 @@ async function getBrowseList(gender, viewerId) {
 
 async function sendOrEditProfileCard(ctx, user, gender, index, total, options = {}) {
   await cleanupProfileUi(ctx, { includeCurrentCallback: true });
-  const caption = buildProfileCaption(user, index, total);
-  const keyboard = buildProfileButtons(user, gender, index, total, options.isAdminView);
-  const sentMessages = await sendProfileCard(ctx, user, caption, keyboard, { album: true });
+  const profileUser = await attachPremiumToUser(user);
+  const caption = buildProfileCaption(profileUser, index, total);
+  const keyboard = buildProfileButtons(profileUser, gender, index, total, options.isAdminView);
+  const sentMessages = await sendProfileCard(ctx, profileUser, caption, keyboard, { album: true });
   rememberProfileUiMessages(ctx, sentMessages);
 }
 
@@ -209,19 +212,32 @@ async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) 
 
 function buildMyProfileCaption(user) {
   const mediaCount = normalizeProfileMedia(user).length;
+  const isPremium = Boolean(user.premium?.isActive);
+  const icon = (key, fallback) => premiumEmoji(key, fallback, isPremium);
+  const header = isPremium
+    ? `${icon('diamond', '💎')} <b>ကျွန်ုပ်၏ Premium Profile</b>`
+    : '👤 <b>ကျွန်ုပ်၏ Profile</b>';
+  const premiumLines = isPremium
+    ? [
+        `${icon('crown', '👑')} <b>Premium User</b>`,
+        `${icon('hourglass', '⏳')} <b>Premium Until:</b> <code>${escapeHtml(formatPremiumUntil(user.premium?.expiresAt))}</code>`,
+        '',
+      ]
+    : [];
+
   return [
-    '👤 <b>ကျွန်ုပ်၏ Profile</b>',
-    '',
-    `🆔 <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
-    `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
-    `⚧ <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
-    `💞 <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
-    `🎂 <b>အသက်:</b> ${escapeHtml(user.age || '-')}`,
-    `📏 <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
-    `📍 <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
-    `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
-    `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
-    `🖼 <b>Media:</b> ${mediaCount}/${MAX_PROFILE_MEDIA}`,
+    header,
+    ...premiumLines,
+    `${icon('profileId', '🆔')} <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
+    `${icon('user', '👤')} <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
+    `${icon('gender', '⚧')} <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
+    `${icon('status', '💞')} <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
+    `${icon('age', '🎂')} <b>အသက်:</b> ${escapeHtml(user.age || '-')}`,
+    `${icon('height', '📏')} <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
+    `${icon('location', '📍')} <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
+    `${icon('hobby', '🎯')} <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
+    `${icon('username', '🆔')} <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `${icon('media', '🖼')} <b>Media:</b> ${mediaCount}/${MAX_PROFILE_MEDIA}`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
   ].join('\n');
@@ -244,8 +260,9 @@ async function showMyProfile(ctx) {
     return;
   }
 
+  const profileUser = await attachPremiumToUser(user);
   await cleanupProfileUi(ctx);
-  const sentMessages = await sendProfileCard(ctx, user, buildMyProfileCaption(user), myProfileKeyboard(user), { album: true });
+  const sentMessages = await sendProfileCard(ctx, profileUser, buildMyProfileCaption(profileUser), myProfileKeyboard(profileUser), { album: true });
   rememberProfileUiMessages(ctx, sentMessages);
 }
 
@@ -270,8 +287,9 @@ async function showProfileByProfileId(ctx, profileId) {
     return;
   }
 
+  const profileUser = await attachPremiumToUser(user);
   await cleanupProfileUi(ctx, { includeCurrentCallback: true });
-  const sentMessages = await sendProfileCard(ctx, user, buildProfileCaption(user, 0, 1), buildDirectProfileButtons(user), { album: true });
+  const sentMessages = await sendProfileCard(ctx, profileUser, buildProfileCaption(profileUser, 0, 1), buildDirectProfileButtons(profileUser), { album: true });
   rememberProfileUiMessages(ctx, sentMessages);
 }
 
@@ -474,7 +492,7 @@ async function finishProfileFlow(ctx) {
   savedUser = await ensureProfileId(savedUser);
 
   if (!wasComplete) {
-    await sendNewUserAlertToSupportChannel(ctx, savedUser);
+    await sendNewUserAlertToSupportChannel(ctx, await attachPremiumToUser(savedUser));
   }
 
   resetProfileSession(ctx);
