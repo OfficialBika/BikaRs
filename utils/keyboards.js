@@ -1,6 +1,27 @@
 const { Markup } = require('telegraf');
 const { escapeHtml } = require('./escapeHtml');
 
+
+const PREMIUM_EMOJI = Object.freeze({
+  diamond: '<tg-emoji emoji-id="5262922516426420894">💍</tg-emoji>',
+  crown: '<tg-emoji emoji-id="5251371708689962992">👑</tg-emoji>',
+  hourglass: '<tg-emoji emoji-id="5206356981094310220">⏳</tg-emoji>',
+  profileId: '<tg-emoji emoji-id="4907231385309152742">🪪</tg-emoji>',
+  user: '<tg-emoji emoji-id="4967667085606912536">👤</tg-emoji>',
+  gender: '<tg-emoji emoji-id="5055708439091610281">🔞</tg-emoji>',
+  status: '<tg-emoji emoji-id="5296489485435951892">💕</tg-emoji>',
+  age: '<tg-emoji emoji-id="5452055425690123301">🎂</tg-emoji>',
+  height: '<tg-emoji emoji-id="5195031173809594981">🤩</tg-emoji>',
+  location: '<tg-emoji emoji-id="5258134950741289943">📍</tg-emoji>',
+  hobby: '<tg-emoji emoji-id="5368516271673471902">🎁</tg-emoji>',
+  username: '<tg-emoji emoji-id="5470153563176990018">❤️</tg-emoji>',
+  media: '<tg-emoji emoji-id="5033108527338488459">🖼</tg-emoji>',
+});
+
+function premiumEmoji(key, fallback, isPremium = true) {
+  return isPremium ? (PREMIUM_EMOJI[key] || fallback || '') : (fallback || '');
+}
+
 const BUTTON_STYLE = Object.freeze({
   PRIMARY: 'primary',
   SUCCESS: 'success',
@@ -83,20 +104,40 @@ function reactionEmoji(type) {
   return '•';
 }
 
+function formatPremiumDate(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toISOString().slice(0, 10);
+}
+
 function buildProfileCaption(user, index, total) {
+  const isPremium = Boolean(user.premium?.isActive);
+  const icon = (key, fallback) => premiumEmoji(key, fallback, isPremium);
+  const header = isPremium
+    ? `${icon('diamond', '💎')} <b>Premium Cupid Profile</b>`
+    : '💘 <b>Cupid Profile</b>';
+  const premiumLines = isPremium
+    ? [
+        `${icon('crown', '👑')} <b>Premium User</b>`,
+        `${icon('hourglass', '⏳')} <b>Premium Until:</b> <code>${escapeHtml(formatPremiumDate(user.premium?.expiresAt))}</code>`,
+        '',
+      ]
+    : [];
+
   return [
-    '💘 <b>Cupid Profile</b>',
-    '',
-    `🆔 <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
-    `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
-    `⚧ <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
-    `💞 <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
-    `🎂 <b>အသက်:</b> ${escapeHtml(user.age || '-')}`,
-    `📏 <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
-    `📍 <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
-    `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
-    `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
-    `🖼 <b>Media:</b> ${Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0)}/3`,
+    header,
+    ...premiumLines,
+    `${icon('profileId', '🆔')} <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
+    `${icon('user', '👤')} <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
+    `${icon('gender', '⚧')} <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
+    `${icon('status', '💞')} <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
+    `${icon('age', '🎂')} <b>အသက်:</b> ${escapeHtml(user.age || '-')}`,
+    `${icon('height', '📏')} <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
+    `${icon('location', '📍')} <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
+    `${icon('hobby', '🎯')} <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
+    `${icon('username', '🆔')} <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `${icon('media', '🖼')} <b>Media:</b> ${Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0)}/3`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
     '',
@@ -114,7 +155,7 @@ function buildProfileButtons(user, gender, index, total, isAdminView = false) {
       callbackButton(`❤ ${user.reactions?.love || 0}`, `rx:love:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.SUCCESS),
       callbackButton(`🤣 ${user.reactions?.laugh || 0}`, `rx:laugh:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.PRIMARY),
     ],
-    [urlButton('💬Dm စကားပြောမယ်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
+    [urlButton('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
     [callbackButton('🚨 Report', `report:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.DANGER)],
     [
       callbackButton('⬅️ Back', `nav:${gender}:${prevIndex}`, BUTTON_STYLE.PRIMARY),
@@ -141,7 +182,7 @@ function buildDirectProfileButtons(user) {
       callbackButton(`❤ ${user.reactions?.love || 0}`, `rxcheck:love:${user.telegramId}`, BUTTON_STYLE.SUCCESS),
       callbackButton(`🤣 ${user.reactions?.laugh || 0}`, `rxcheck:laugh:${user.telegramId}`, BUTTON_STYLE.PRIMARY),
     ],
-    [urlButton('💬Dm စကားပြောမယ်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
+    [urlButton('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
     [callbackButton('🚨 Report', `reportcheck:${user.telegramId}`, BUTTON_STYLE.DANGER)],
     [callbackButton('🏠 Main Menu', 'main:menu', BUTTON_STYLE.PRIMARY)],
   ];
@@ -151,6 +192,8 @@ function buildDirectProfileButtons(user) {
 
 module.exports = {
   BUTTON_STYLE,
+  PREMIUM_EMOJI,
+  premiumEmoji,
   callbackButton,
   urlButton,
   replyButton,

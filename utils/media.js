@@ -7,6 +7,7 @@ const {
 const { escapeHtml } = require('./escapeHtml');
 const {
   BUTTON_STYLE,
+  premiumEmoji,
   urlButton,
   inlineKeyboard,
 } = require('./keyboards');
@@ -245,23 +246,34 @@ async function getBotUsername(ctx) {
 
 function buildNewUserAlertText(user) {
   const mediaCount = normalizeProfileMedia(user).length;
+  const isPremium = Boolean(user.premium?.isActive);
+  const icon = (key, fallback) => premiumEmoji(key, fallback, isPremium);
+  const premiumLines = isPremium
+    ? [
+        `${icon('diamond', '💎')} <b>Premium User</b>`,
+        `${icon('hourglass', '⏳')} Premium Until: <code>${escapeHtml(new Date(user.premium.expiresAt).toISOString().slice(0, 10))}</code>`,
+        '',
+      ]
+    : [];
+
   return [
-    '🆕 <b>New User Alert</b>',
+    isPremium ? `🆕${icon('diamond', '💎')} <b>New Premium User Alert</b>` : '🆕 <b>New User Alert</b>',
     '',
-    `👤 User: ${mentionFromProfile(user)}`,
-    `🆔 Profile ID: <code>${escapeHtml(user.profileId || '-')}</code>`,
-    `🆔 Telegram ID: <code>${user.telegramId || '-'}</code>`,
-    `🧾 Username: ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    ...premiumLines,
+    `${icon('user', '👤')} User: ${mentionFromProfile(user)}`,
+    `${icon('profileId', '🆔')} Profile ID: <code>${escapeHtml(user.profileId || '-')}</code>`,
+    `${icon('profileId', '🆔')} Telegram ID: <code>${user.telegramId || '-'}</code>`,
+    `${icon('username', '🧾')} Username: ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
     '',
-    '💘 <b>User Info</b>',
-    `👤 နာမည်: <b>${escapeHtml(user.profileName || '-')}</b>`,
-    `⚧ လိင်: <b>${escapeHtml(user.gender || '-')}</b>`,
-    `💞 Status: <b>${escapeHtml(user.relationshipStatus || '-')}</b>`,
-    `🎂 အသက်: <b>${escapeHtml(user.age || '-')}</b>`,
-    `📏 အရပ်: <b>${escapeHtml(user.height || '-')}</b>`,
-    `📍 နေရပ်: <b>${escapeHtml(user.address || '-')}</b>`,
-    `🎯 ဝါသနာ: <b>${escapeHtml(user.hobby || '-')}</b>`,
-    `🖼 Profile Media: <b>${mediaCount}/${MAX_PROFILE_MEDIA}</b>`,
+    isPremium ? `${icon('diamond', '💎')} <b>Premium User Info</b>` : '💘 <b>User Info</b>',
+    `${icon('user', '👤')} နာမည်: <b>${escapeHtml(user.profileName || '-')}</b>`,
+    `${icon('gender', '⚧')} လိင်: <b>${escapeHtml(user.gender || '-')}</b>`,
+    `${icon('status', '💞')} Status: <b>${escapeHtml(user.relationshipStatus || '-')}</b>`,
+    `${icon('age', '🎂')} အသက်: <b>${escapeHtml(user.age || '-')}</b>`,
+    `${icon('height', '📏')} အရပ်: <b>${escapeHtml(user.height || '-')}</b>`,
+    `${icon('location', '📍')} နေရပ်: <b>${escapeHtml(user.address || '-')}</b>`,
+    `${icon('hobby', '🎯')} ဝါသနာ: <b>${escapeHtml(user.hobby || '-')}</b>`,
+    `${icon('media', '🖼')} Profile Media: <b>${mediaCount}/${MAX_PROFILE_MEDIA}</b>`,
     '',
     `🕒 Created: <code>${new Date().toISOString()}</code>`,
   ].join('\n');
