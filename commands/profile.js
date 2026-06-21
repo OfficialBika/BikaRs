@@ -94,6 +94,24 @@ async function safeDeleteMessage(ctx, messageId) {
   } catch (_) {}
 }
 
+function isGroupChat(ctx) {
+  return ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+}
+
+async function clearGroupReplyKeyboard(ctx) {
+  if (!isGroupChat(ctx)) return;
+  try {
+    const msg = await ctx.reply('⌛', Markup.removeKeyboard());
+    setTimeout(() => {
+      ctx.telegram.deleteMessage(ctx.chat.id, msg.message_id).catch(() => {});
+    }, 800).unref?.();
+  } catch (_) {}
+}
+
+function contextMenuKeyboard(ctx) {
+  return isGroupChat(ctx) ? Markup.removeKeyboard() : mainMenuKeyboard();
+}
+
 async function cleanupMessageIds(ctx, ids = []) {
   const uniqueIds = [...new Set(ids.map(Number).filter((id) => Number.isFinite(id) && id > 0))];
   for (const id of uniqueIds) {
@@ -233,9 +251,11 @@ async function showMyProfile(ctx) {
 
 
 async function showProfileByProfileId(ctx, profileId) {
+  await clearGroupReplyKeyboard(ctx);
+
   const id = Number(profileId);
   if (!isValidProfileId(id)) {
-    await ctx.reply('အသုံးပြုပုံ - /check <profileId>\nဥပမာ - /check 1');
+    await ctx.reply('အသုံးပြုပုံ - /check <profileId>\nဥပမာ - /check 1', contextMenuKeyboard(ctx));
     return;
   }
 
@@ -246,7 +266,7 @@ async function showProfileByProfileId(ctx, profileId) {
   }).lean();
 
   if (!user) {
-    await ctx.reply(`Profile ID ${id} ကို မတွေ့ပါ။`, mainMenuKeyboard());
+    await ctx.reply(`Profile ID ${id} ကို မတွေ့ပါ။`, contextMenuKeyboard(ctx));
     return;
   }
 
