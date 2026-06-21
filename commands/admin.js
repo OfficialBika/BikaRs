@@ -4,6 +4,15 @@ const Report = require('../models/Report');
 const { isAdmin } = require('../middlewares/auth');
 const { escapeHtml } = require('../utils/escapeHtml');
 const { BUTTON_STYLE, callbackButton, inlineKeyboard } = require('../utils/keyboards');
+const {
+  isPremiumOwner,
+  parsePremiumDuration,
+  resolvePremiumTarget,
+  grantPremium,
+  revokePremium,
+  getActivePremiumByTelegramId,
+  formatPremiumUntil,
+} = require('../utils/premium');
 const { sendProfileCard } = require('../utils/media');
 const {
   startBroadcast,
@@ -99,6 +108,114 @@ async function sendReportedProfileCard(ctx, report, target, reporter, currentInd
   rememberAdminReportMessages(ctx, msg);
 }
 
+
+function premiumUsage() {
+  return [
+    '💎 <b>Premium Commands</b>',
+    '',
+    '<code>/setpre userId 30days</code>',
+    '<code>/setpre @username 30days</code>',
+    '<code>/unpre userId</code>',
+    '<code>/precheck userId</code>',
+    '',
+    'ဥပမာ - <code>/setpre 123456789 30days</code>',
+  ].join('\n');
+}
+
+async function requirePremiumOwner(ctx) {
+  if (isPremiumOwner(ctx.from?.id)) return true;
+  await ctx.reply('ဒီ command ကို Premium Owner account မှသာ အသုံးပြုနိုင်ပါတယ်။');
+  return false;
+}
+
+async function handleSetPremium(ctx) {
+  if (!(await requirePremiumOwner(ctx))) return;
+
+  const parts = String(ctx.message?.text || '').trim().split(/\s+/);
+  const targetArg = parts[1];
+  const durationArg = parts[2];
+
+  if (!targetArg || !durationArg) {
+    await ctx.reply(premiumUsage(), { parse_mode: 'HTML' });
+    return;
+  }
+
+  const days = parsePremiumDuration(durationArg);
+  if (!days) {
+    await ctx.reply('Duration format မှားနေပါတယ်။ ဥပမာ - <code>30days</code>, <code>7days</code>, <code>1day</code>', { parse_mode: 'HTML' });
+    return;
+  }
+
+  const target = await resolvePremiumTarget(targetArg);
+  if (!target) {
+    await ctx.reply('Target user မတွေ့ပါ။ Username နဲ့သုံးမယ်ဆိုရင် အဲဒီ user က bot ကို အရင် /start နှိပ်ထားရပါမယ်။');
+    return;
+  }
+
+  const record = await grantPremium(target, days, ctx.from.id);
+  await ctx.reply([
+    '✅ <b>Premium User ထည့်ပြီးပါပြီ</b>',
+    '',
+    `👤 Telegram ID: <code>${target.telegramId}</code>`,
+    `🆔 Profile ID: <code>${target.profileId || '-'}</code>`,
+    `🧾 Username: ${target.username ? `@${target.username}` : '-'}`,
+    `💎 Duration: <b>${days} days</b>`,
+    `⏳ Expires: <code>${formatPremiumUntil(record.expiresAt)}</code>`,
+  ].join('\n'), { parse_mode: 'HTML' });
+}
+
+async function handleRemovePremium(ctx) {
+  if (!(await requirePremiumOwner(ctx))) return;
+
+  const parts = String(ctx.message?.text || '').trim().split(/\s+/);
+  const targetArg = parts[1];
+  if (!targetArg) {
+    await ctx.reply('အသုံးပြုပုံ - <code>/unpre userId</code> သို့မဟုတ် <code>/unpre @username</code>', { parse_mode: 'HTML' });
+    return;
+  }
+
+  const target = await resolvePremiumTarget(targetArg);
+  if (!target) {
+    await ctx.reply('Target user မတွေ့ပါ။');
+    return;
+  }
+
+  await revokePremium(target, ctx.from.id);
+  await ctx.reply(`✅ Premium ဖြုတ်ပြီးပါပြီ။\n👤 Telegram ID: <code>${target.telegramId}</code>`, { parse_mode: 'HTML' });
+}
+
+async function handlePremiumCheck(ctx) {
+  if (!(await requirePremiumOwner(ctx))) return;
+
+  const parts = String(ctx.message?.text || '').trim().split(/\s+/);
+  const targetArg = parts[1];
+  if (!targetArg) {
+    await ctx.reply('အသုံးပြုပုံ - <code>/precheck userId</code> သို့မဟုတ် <code>/precheck @username</code>', { parse_mode: 'HTML' });
+    return;
+  }
+
+  const target = await resolvePremiumTarget(targetArg);
+  if (!target) {
+    await ctx.reply('Target user မတွေ့ပါ။');
+    return;
+  }
+
+  const record = await getActivePremiumByTelegramId(target.telegramId);
+  if (!record) {
+    await ctx.reply(`ℹ️ Premium မရှိပါ။\n👤 Telegram ID: <code>${target.telegramId}</code>`, { parse_mode: 'HTML' });
+    return;
+  }
+
+  await ctx.reply([
+    '💎 <b>Premium Active</b>',
+    '',
+    `👤 Telegram ID: <code>${target.telegramId}</code>`,
+    `🆔 Profile ID: <code>${target.profileId || '-'}</code>`,
+    `🧾 Username: ${target.username ? `@${target.username}` : '-'}`,
+    `⏳ Expires: <code>${formatPremiumUntil(record.expiresAt)}</code>`,
+  ].join('\n'), { parse_mode: 'HTML' });
+}
+
 function registerAdminCommands(bot) {
   bot.command('admin', async (ctx) => {
     if (!isAdmin(ctx.from.id)) {
@@ -116,6 +233,11 @@ function registerAdminCommands(bot) {
       ]).reply_markup,
     });
   });
+
+
+  bot.command('setpre', handleSetPremium);
+  bot.command('unpre', handleRemovePremium);
+  bot.command('precheck', handlePremiumCheck);
 
   bot.command('ban', async (ctx) => {
     if (!isAdmin(ctx.from.id)) return;
