@@ -4,6 +4,7 @@ const {
   SUPPORT_GROUP_ID,
   SUPPORT_CHANNEL_URL,
   SUPPORT_GROUP_URL,
+  PREMIUM_OWNER_ID,
 } = require('../config/env');
 const { isAdmin } = require('./auth');
 const { isPrivateChat } = require('./privateOnly');
@@ -22,6 +23,10 @@ let cachedInviteLinks = {
 
 function isEnabled() {
   return Boolean(REQUIRE_SUPPORT_JOIN);
+}
+
+function isJoinGateBypassed(userId) {
+  return isAdmin(userId) || Number(userId) === Number(PREMIUM_OWNER_ID);
 }
 
 function isActionableUpdate(ctx) {
@@ -198,7 +203,7 @@ async function promptJoinRequired(ctx, status) {
 async function requireSupportMembership(ctx, options = {}) {
   if (!isEnabled()) return true;
   if (!ctx.from?.id) return true;
-  if (isAdmin(ctx.from.id)) return true;
+  if (isJoinGateBypassed(ctx.from.id)) return true;
 
   const status = await checkRequiredMembership(ctx, ctx.from.id);
   if (status.ok) return true;
@@ -211,7 +216,7 @@ function requiredMembershipMiddleware() {
   return async (ctx, next) => {
     if (!isEnabled()) return next();
     if (!ctx.from?.id) return next();
-    if (isAdmin(ctx.from.id)) return next();
+    if (isJoinGateBypassed(ctx.from.id)) return next();
 
     // In groups/supergroups, keep the bot quiet. Only /start and /check are allowed.
     // This prevents reply menus and join-gate prompts from spamming group chats.
