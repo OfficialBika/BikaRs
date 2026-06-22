@@ -275,7 +275,7 @@ function buildProfileButtons(user, gender, index, total, isAdminView = false) {
       callbackButton(`❤ ${user.reactions?.love || 0}`, `rx:love:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.SUCCESS),
       callbackButton(`🤣 ${user.reactions?.laugh || 0}`, `rx:laugh:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.PRIMARY),
     ],
-    [urlButton('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
+    [urlButton('💬Dm စကားပြောမယ်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
     [callbackButton('🚨 Report', `report:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.DANGER)],
     [
       callbackButton('⬅️ Back', `nav:${gender}:${prevIndex}`, BUTTON_STYLE.PRIMARY),
@@ -302,7 +302,7 @@ function buildDirectProfileButtons(user) {
       callbackButton(`❤ ${user.reactions?.love || 0}`, `rxcheck:love:${user.telegramId}`, BUTTON_STYLE.SUCCESS),
       callbackButton(`🤣 ${user.reactions?.laugh || 0}`, `rxcheck:laugh:${user.telegramId}`, BUTTON_STYLE.PRIMARY),
     ],
-    [urlButton('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
+    [urlButton('💬Dm စကားပြောမယ်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
     [callbackButton('🚨 Report', `reportcheck:${user.telegramId}`, BUTTON_STYLE.DANGER)],
     [callbackButton('🏠 Main Menu', 'main:menu', BUTTON_STYLE.PRIMARY)],
   ];
