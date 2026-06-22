@@ -111,33 +111,153 @@ function formatPremiumDate(value) {
   return date.toISOString().slice(0, 10);
 }
 
-function buildProfileCaption(user, index, total) {
-  const isPremium = Boolean(user.premium?.isActive);
-  const icon = (key, fallback) => premiumEmoji(key, fallback, isPremium);
-  const header = isPremium
-    ? `${icon('diamond', '💎')} <b>Premium Cupid Profile</b>`
-    : '💘 <b>Cupid Profile</b>';
-  const premiumLines = isPremium
-    ? [
-        `${icon('crown', '👑')} <b>Premium User</b>`,
-        `${icon('hourglass', '⏳')} <b>Premium Until:</b> <code>${escapeHtml(formatPremiumDate(user.premium?.expiresAt))}</code>`,
-        '',
-      ]
-    : [];
+
+function charLen(value) {
+  return [...String(value || '')].length;
+}
+
+function truncateText(value, max = 22) {
+  const text = String(value ?? '-')
+    .replace(/\s+/g, ' ')
+    .trim() || '-';
+
+  if (charLen(text) <= max) return text;
+  return [...text].slice(0, Math.max(1, max - 1)).join('') + '…';
+}
+
+function padText(value, width) {
+  const text = truncateText(value, width);
+  const len = charLen(text);
+  return len >= width ? text : `${text}${' '.repeat(width - len)}`;
+}
+
+function buildPremiumInfoTable(rows = []) {
+  const labelWidth = 12;
+  const valueWidth = 22;
+  const top = `┌${'─'.repeat(labelWidth + 2)}┬${'─'.repeat(valueWidth + 2)}┐`;
+  const bottom = `└${'─'.repeat(labelWidth + 2)}┴${'─'.repeat(valueWidth + 2)}┘`;
+  const body = rows.map(([label, value]) => `│ ${padText(label, labelWidth)} │ ${padText(value, valueWidth)} │`);
+  return [top, ...body, bottom].join('\n');
+}
+
+function premiumTableUsername(user = {}) {
+  return user.username ? `@${user.username}` : '-';
+}
+
+function buildPremiumProfileCaption(user, options = {}) {
+  const mediaCount = Number.isFinite(Number(options.mediaCount))
+    ? Number(options.mediaCount)
+    : (Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0));
+  const title = options.title || 'PREMIUM CUPID PROFILE';
+  const until = formatPremiumDate(user.premium?.expiresAt);
+  const table = buildPremiumInfoTable([
+    ['Status', 'Premium User'],
+    ['Until', until],
+    ['Profile ID', user.profileId || '-'],
+    ['Name', user.profileName || '-'],
+    ['Gender', genderLabel(user.gender)],
+    ['Relation', user.relationshipStatus || '-'],
+    ['Age', user.age || '-'],
+    ['Height', user.height || '-'],
+    ['Address', user.address || '-'],
+    ['Hobby', user.hobby || '-'],
+    ['Username', premiumTableUsername(user)],
+    ['Media', `${mediaCount}/${3}`],
+  ]);
+
+  const lines = [
+    `${premiumEmoji('diamond', '💎', true)} <b>${escapeHtml(title)}</b>`,
+    `${premiumEmoji('crown', '👑', true)} <b>Premium User</b>   ${premiumEmoji('hourglass', '⏳', true)} <code>${escapeHtml(until)}</code>`,
+    '',
+    `<pre>${escapeHtml(table)}</pre>`,
+    '',
+    `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
+  ];
+
+  if (options.includePagination) {
+    const index = Number(options.index || 0);
+    const total = Number(options.total || 0);
+    lines.push('', `📄 <b>${total > 0 ? index + 1 : 0}/${total}</b>`);
+  }
+
+  return lines.join('\n');
+}
+
+
+function richCell(value) {
+  return String(value ?? '-')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function buildRichTableRow(labelHtml, valueHtml) {
+  return `<tr><td><b>${labelHtml}</b></td><td>${valueHtml}</td></tr>`;
+}
+
+function buildPremiumProfileRichHtml(user, options = {}) {
+  const mediaCount = Number.isFinite(Number(options.mediaCount))
+    ? Number(options.mediaCount)
+    : (Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0));
+  const title = options.title || 'PREMIUM CUPID PROFILE';
+  const until = formatPremiumDate(user.premium?.expiresAt);
+  const includePagination = Boolean(options.includePagination);
+  const index = Number(options.index || 0);
+  const total = Number(options.total || 0);
+
+  const rows = [
+    [premiumEmoji('crown', '👑', true) + ' Status', '<b>Premium User</b>'],
+    [premiumEmoji('hourglass', '⏳', true) + ' Premium Until', `<code>${richCell(until)}</code>`],
+    [premiumEmoji('profileId', '🪪', true) + ' Profile ID', `<code>${richCell(user.profileId || '-')}</code>`],
+    [premiumEmoji('user', '👤', true) + ' Name', richCell(user.profileName || '-')],
+    [premiumEmoji('gender', '🔞', true) + ' Gender', richCell(genderLabel(user.gender))],
+    [premiumEmoji('status', '💕', true) + ' Relationship', richCell(user.relationshipStatus || '-')],
+    [premiumEmoji('age', '🎂', true) + ' Age', richCell(user.age || '-')],
+    [premiumEmoji('height', '🤩', true) + ' Height', richCell(user.height || '-')],
+    [premiumEmoji('location', '📍', true) + ' Address', richCell(user.address || '-')],
+    [premiumEmoji('hobby', '🎁', true) + ' Hobby', richCell(user.hobby || '-')],
+    [premiumEmoji('username', '❤️', true) + ' Username', user.username ? `<code>@${richCell(user.username)}</code>` : '-'],
+    [premiumEmoji('media', '🖼', true) + ' Media', `<b>${richCell(`${mediaCount}/${3}`)}</b>`],
+  ];
+
+  const tableRows = rows.map(([label, value]) => buildRichTableRow(label, value)).join('');
+  const pageLine = includePagination
+    ? `<p>📄 <b>${total > 0 ? index + 1 : 0}/${total}</b></p>`
+    : '';
 
   return [
-    header,
-    ...premiumLines,
-    `${icon('profileId', '🆔')} <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
-    `${icon('user', '👤')} <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
-    `${icon('gender', '⚧')} <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
-    `${icon('status', '💞')} <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
-    `${icon('age', '🎂')} <b>အသက်:</b> ${escapeHtml(user.age || '-')}`,
-    `${icon('height', '📏')} <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
-    `${icon('location', '📍')} <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
-    `${icon('hobby', '🎯')} <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
-    `${icon('username', '🆔')} <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
-    `${icon('media', '🖼')} <b>Media:</b> ${Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0)}/3`,
+    `<h3>${premiumEmoji('diamond', '💎', true)} ${richCell(title)}</h3>`,
+    `<blockquote>${premiumEmoji('crown', '👑', true)} <b>Premium User</b> ${premiumEmoji('hourglass', '⏳', true)} <code>${richCell(until)}</code></blockquote>`,
+    `<table bordered striped><caption>${premiumEmoji('diamond', '💎', true)} Premium Profile Info</caption><tr><th>Field</th><th>Value</th></tr>${tableRows}</table>`,
+    `<p>👍 <b>${richCell(user.reactions?.like || 0)}</b> &nbsp; ❤ <b>${richCell(user.reactions?.love || 0)}</b> &nbsp; 🤣 <b>${richCell(user.reactions?.laugh || 0)}</b></p>`,
+    pageLine,
+  ].filter(Boolean).join('\n');
+}
+
+function buildProfileCaption(user, index, total) {
+  const isPremium = Boolean(user.premium?.isActive);
+  if (isPremium) {
+    return buildPremiumProfileCaption(user, {
+      title: 'PREMIUM CUPID PROFILE',
+      index,
+      total,
+      includePagination: true,
+    });
+  }
+
+  return [
+    '💘 <b>Cupid Profile</b>',
+    `${premiumEmoji('profileId', '🆔', false)} <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
+    `${premiumEmoji('user', '👤', false)} <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
+    `${premiumEmoji('gender', '⚧', false)} <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
+    `${premiumEmoji('status', '💞', false)} <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
+    `${premiumEmoji('age', '🎂', false)} <b>အသက်:</b> ${escapeHtml(user.age || '-')}`,
+    `${premiumEmoji('height', '📏', false)} <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
+    `${premiumEmoji('location', '📍', false)} <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
+    `${premiumEmoji('hobby', '🎯', false)} <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
+    `${premiumEmoji('username', '🆔', false)} <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `${premiumEmoji('media', '🖼', false)} <b>Media:</b> ${Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0)}/3`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
     '',
@@ -155,7 +275,7 @@ function buildProfileButtons(user, gender, index, total, isAdminView = false) {
       callbackButton(`❤ ${user.reactions?.love || 0}`, `rx:love:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.SUCCESS),
       callbackButton(`🤣 ${user.reactions?.laugh || 0}`, `rx:laugh:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.PRIMARY),
     ],
-    [urlButton('💬Dm စကားပြောမယ်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
+    [urlButton('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
     [callbackButton('🚨 Report', `report:${user.telegramId}:${gender}:${index}`, BUTTON_STYLE.DANGER)],
     [
       callbackButton('⬅️ Back', `nav:${gender}:${prevIndex}`, BUTTON_STYLE.PRIMARY),
@@ -182,7 +302,7 @@ function buildDirectProfileButtons(user) {
       callbackButton(`❤ ${user.reactions?.love || 0}`, `rxcheck:love:${user.telegramId}`, BUTTON_STYLE.SUCCESS),
       callbackButton(`🤣 ${user.reactions?.laugh || 0}`, `rxcheck:laugh:${user.telegramId}`, BUTTON_STYLE.PRIMARY),
     ],
-    [urlButton('💬Dm စကားပြောမယ်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
+    [urlButton('👤 Telegram Account ဖွင့်ရန်', profileOpenUrl(user), BUTTON_STYLE.PRIMARY)],
     [callbackButton('🚨 Report', `reportcheck:${user.telegramId}`, BUTTON_STYLE.DANGER)],
     [callbackButton('🏠 Main Menu', 'main:menu', BUTTON_STYLE.PRIMARY)],
   ];
@@ -203,6 +323,10 @@ module.exports = {
   profileOpenUrl,
   genderLabel,
   reactionEmoji,
+  formatPremiumDate,
+  buildPremiumInfoTable,
+  buildPremiumProfileCaption,
+  buildPremiumProfileRichHtml,
   buildProfileCaption,
   buildProfileButtons,
   buildDirectProfileButtons,

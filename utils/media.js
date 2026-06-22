@@ -8,6 +8,9 @@ const { escapeHtml } = require('./escapeHtml');
 const {
   BUTTON_STYLE,
   premiumEmoji,
+  formatPremiumDate,
+  buildPremiumInfoTable,
+  buildPremiumProfileRichHtml,
   urlButton,
   inlineKeyboard,
 } = require('./keyboards');
@@ -134,6 +137,86 @@ function toInputMedia(media) {
   return { type: 'photo', media: media.fileId };
 }
 
+
+function isPremiumUser(user = {}) {
+  return Boolean(user.premium?.isActive);
+}
+
+async function sendRichMessage(ctx, chatId, html, keyboard, fallbackText, extra = {}) {
+  try {
+    return await ctx.telegram.callApi('sendRichMessage', {
+      chat_id: chatId,
+      rich_message: {
+        html,
+        skip_entity_detection: true,
+      },
+      reply_markup: keyboard?.reply_markup,
+      ...extra,
+    });
+  } catch (error) {
+    console.error('SEND_RICH_MESSAGE_FALLBACK:', error?.response?.description || error?.description || error?.message || error);
+    return ctx.telegram.sendMessage(chatId, fallbackText, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: keyboard?.reply_markup,
+    });
+  }
+}
+
+async function sendMediaOnly(ctx, media) {
+  try {
+    if (media.type === 'video') return await ctx.replyWithVideo(media.fileId);
+    return await ctx.replyWithPhoto(media.fileId);
+  } catch (error) {
+    if (media.backupChatId && media.backupMessageId) {
+      return ctx.telegram.copyMessage(ctx.chat.id, media.backupChatId, media.backupMessageId);
+    }
+    throw error;
+  }
+}
+
+async function sendPremiumRichProfileCard(ctx, user, fallbackCaption, keyboard, options = {}) {
+  const media = normalizeProfileMedia(user);
+
+  if (ctx.updateType === 'callback_query') {
+    try { await ctx.deleteMessage(); } catch (_) {}
+  }
+
+  const sentMessages = [];
+  if (media.length > 0) {
+    if (media.length > 1 && options.album !== false) {
+      try {
+        const mediaMessages = await ctx.replyWithMediaGroup(media.map(toInputMedia));
+        if (Array.isArray(mediaMessages)) sentMessages.push(...mediaMessages);
+      } catch (_) {
+        for (const item of media) {
+          try {
+            const msg = await sendMediaOnly(ctx, item);
+            sentMessages.push(msg);
+          } catch (_) {}
+        }
+      }
+    } else {
+      try {
+        const msg = await sendMediaOnly(ctx, media[0]);
+        sentMessages.push(msg);
+      } catch (_) {}
+    }
+  }
+
+  const html = buildPremiumProfileRichHtml(user, {
+    title: options.richTitle || 'PREMIUM CUPID PROFILE',
+    mediaCount: media.length,
+    includePagination: Boolean(options.includePagination),
+    index: options.index,
+    total: options.total,
+  });
+
+  const richMsg = await sendRichMessage(ctx, ctx.chat.id, html, keyboard, fallbackCaption);
+  sentMessages.push(richMsg);
+  return sentMessages.filter(Boolean);
+}
+
 async function sendSingleMedia(ctx, media, caption, keyboard) {
   const payload = {
     caption,
@@ -176,6 +259,10 @@ async function editOrSendSingleMedia(ctx, media, caption, keyboard) {
 
 async function sendProfileCard(ctx, user, caption, keyboard, options = {}) {
   const media = normalizeProfileMedia(user);
+
+  if (options.premiumRich && isPremiumUser(user)) {
+    return sendPremiumRichProfileCard(ctx, user, caption, keyboard, options);
+  }
 
   if (media.length === 0) {
     if (ctx.updateType === 'callback_query') {
@@ -244,36 +331,84 @@ async function getBotUsername(ctx) {
   return cachedBotUsername;
 }
 
+
+function buildNewUserAlertRichHtml(user) {
+  const mediaCount = normalizeProfileMedia(user).length;
+  const icon = (key, fallback) => premiumEmoji(key, fallback, true);
+  const until = formatPremiumDate(user.premium?.expiresAt);
+  const rows = [
+    [icon('profileId', '🪪') + ' Profile ID', `<code>${escapeHtml(user.profileId || '-')}</code>`],
+    [icon('profileId', '🪪') + ' Telegram ID', `<code>${escapeHtml(user.telegramId || '-')}</code>`],
+    [icon('username', '❤️') + ' Username', user.username ? `<code>@${escapeHtml(user.username)}</code>` : '-'],
+    [icon('user', '👤') + ' Name', escapeHtml(user.profileName || '-')],
+    [icon('gender', '🔞') + ' Gender', escapeHtml(user.gender || '-')],
+    [icon('status', '💕') + ' Status', escapeHtml(user.relationshipStatus || '-')],
+    [icon('age', '🎂') + ' Age', escapeHtml(user.age || '-')],
+    [icon('height', '🤩') + ' Height', escapeHtml(user.height || '-')],
+    [icon('location', '📍') + ' Address', escapeHtml(user.address || '-')],
+    [icon('hobby', '🎁') + ' Hobby', escapeHtml(user.hobby || '-')],
+    [icon('media', '🖼') + ' Media', `<b>${escapeHtml(`${mediaCount}/${MAX_PROFILE_MEDIA}`)}</b>`],
+  ];
+  const tableRows = rows.map(([label, value]) => `<tr><td><b>${label}</b></td><td>${value}</td></tr>`).join('');
+  return [
+    `<h3>🆕${icon('diamond', '💎')} NEW PREMIUM USER ALERT</h3>`,
+    `<blockquote>${icon('crown', '👑')} <b>Premium User</b> ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code></blockquote>`,
+    `<p>${icon('user', '👤')} User: ${mentionFromProfile(user)}</p>`,
+    `<table bordered striped><caption>${icon('diamond', '💎')} Premium User Info</caption><tr><th>Field</th><th>Value</th></tr>${tableRows}</table>`,
+    `<footer>🕒 Created: <code>${new Date().toISOString()}</code></footer>`,
+  ].join('\n');
+}
+
 function buildNewUserAlertText(user) {
   const mediaCount = normalizeProfileMedia(user).length;
   const isPremium = Boolean(user.premium?.isActive);
   const icon = (key, fallback) => premiumEmoji(key, fallback, isPremium);
-  const premiumLines = isPremium
-    ? [
-        `${icon('diamond', '💎')} <b>Premium User</b>`,
-        `${icon('hourglass', '⏳')} Premium Until: <code>${escapeHtml(new Date(user.premium.expiresAt).toISOString().slice(0, 10))}</code>`,
-        '',
-      ]
-    : [];
+
+  if (isPremium) {
+    const until = formatPremiumDate(user.premium?.expiresAt);
+    const table = buildPremiumInfoTable([
+      ['Profile ID', user.profileId || '-'],
+      ['Telegram ID', user.telegramId || '-'],
+      ['Username', user.username ? `@${user.username}` : '-'],
+      ['Name', user.profileName || '-'],
+      ['Gender', user.gender || '-'],
+      ['Status', user.relationshipStatus || '-'],
+      ['Age', user.age || '-'],
+      ['Height', user.height || '-'],
+      ['Address', user.address || '-'],
+      ['Hobby', user.hobby || '-'],
+      ['Media', `${mediaCount}/${MAX_PROFILE_MEDIA}`],
+    ]);
+
+    return [
+      `🆕${icon('diamond', '💎')} <b>NEW PREMIUM USER ALERT</b>`,
+      `${icon('crown', '👑')} <b>Premium User</b>   ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code>`,
+      '',
+      `${icon('user', '👤')} User: ${mentionFromProfile(user)}`,
+      '',
+      `<pre>${escapeHtml(table)}</pre>`,
+      '',
+      `🕒 Created: <code>${new Date().toISOString()}</code>`,
+    ].join('\n');
+  }
 
   return [
-    isPremium ? `🆕${icon('diamond', '💎')} <b>New Premium User Alert</b>` : '🆕 <b>New User Alert</b>',
+    '🆕 <b>New User Alert</b>',
     '',
-    ...premiumLines,
-    `${icon('user', '👤')} User: ${mentionFromProfile(user)}`,
-    `${icon('profileId', '🆔')} Profile ID: <code>${escapeHtml(user.profileId || '-')}</code>`,
-    `${icon('profileId', '🆔')} Telegram ID: <code>${user.telegramId || '-'}</code>`,
-    `${icon('username', '🧾')} Username: ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `👤 User: ${mentionFromProfile(user)}`,
+    `🆔 Profile ID: <code>${escapeHtml(user.profileId || '-')}</code>`,
+    `🆔 Telegram ID: <code>${user.telegramId || '-'}</code>`,
+    `🧾 Username: ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
     '',
-    isPremium ? `${icon('diamond', '💎')} <b>Premium User Info</b>` : '💘 <b>User Info</b>',
-    `${icon('user', '👤')} နာမည်: <b>${escapeHtml(user.profileName || '-')}</b>`,
-    `${icon('gender', '⚧')} လိင်: <b>${escapeHtml(user.gender || '-')}</b>`,
-    `${icon('status', '💞')} Status: <b>${escapeHtml(user.relationshipStatus || '-')}</b>`,
-    `${icon('age', '🎂')} အသက်: <b>${escapeHtml(user.age || '-')}</b>`,
-    `${icon('height', '📏')} အရပ်: <b>${escapeHtml(user.height || '-')}</b>`,
-    `${icon('location', '📍')} နေရပ်: <b>${escapeHtml(user.address || '-')}</b>`,
-    `${icon('hobby', '🎯')} ဝါသနာ: <b>${escapeHtml(user.hobby || '-')}</b>`,
-    `${icon('media', '🖼')} Profile Media: <b>${mediaCount}/${MAX_PROFILE_MEDIA}</b>`,
+    '💘 <b>User Info</b>',
+    `👤 နာမည်: <b>${escapeHtml(user.profileName || '-')}</b>`,
+    `⚧ လိင်: <b>${escapeHtml(user.gender || '-')}</b>`,
+    `💞 Status: <b>${escapeHtml(user.relationshipStatus || '-')}</b>`,
+    `🎂 အသက်: <b>${escapeHtml(user.age || '-')}</b>`,
+    `📏 အရပ်: <b>${escapeHtml(user.height || '-')}</b>`,
+    `📍 နေရပ်: <b>${escapeHtml(user.address || '-')}</b>`,
+    `🎯 ဝါသနာ: <b>${escapeHtml(user.hobby || '-')}</b>`,
+    `🖼 Profile Media: <b>${mediaCount}/${MAX_PROFILE_MEDIA}</b>`,
     '',
     `🕒 Created: <code>${new Date().toISOString()}</code>`,
   ].join('\n');
@@ -321,12 +456,20 @@ async function sendNewUserAlertToSupportChannel(ctx, user) {
       ? `https://t.me/${botUsername}?start=profile_${user.telegramId}`
       : `tg://user?id=${user.telegramId}`;
 
-    await ctx.telegram.sendMessage(SUPPORT_CHANNEL_ID, buildNewUserAlertText(user), {
+    const alertKeyboard = inlineKeyboard([
+      [urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS)],
+    ]);
+    const fallbackText = buildNewUserAlertText(user);
+
+    if (isPremiumUser(user)) {
+      await sendRichMessage(ctx, SUPPORT_CHANNEL_ID, buildNewUserAlertRichHtml(user), alertKeyboard, fallbackText);
+      return;
+    }
+
+    await ctx.telegram.sendMessage(SUPPORT_CHANNEL_ID, fallbackText, {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
-      reply_markup: inlineKeyboard([
-        [urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS)],
-      ]).reply_markup,
+      reply_markup: alertKeyboard.reply_markup,
     });
   } catch (error) {
     console.error('NEW_USER_ALERT_ERROR:', error);
