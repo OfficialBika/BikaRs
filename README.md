@@ -8,7 +8,7 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 - Main reply menu appears only after tapping Main Menu
 - Profile create/edit flow
 - Sequential public Profile ID for completed profiles
-- `/check <profileId>` command to open a profile by Profile ID (works in DM and groups)
+- `/check 1` command to open a profile by Profile ID (works in DM and groups)
 - Profile photo/video media support, 1 to 3 items per user
 - MongoDB stores media metadata only: `fileId`, `fileUniqueId`, backup channel id, and backup message id
 - Cupid Database channel backup support
@@ -162,7 +162,7 @@ Completed profiles receive a public sequential `profileId`.
 - IDs start from `1`.
 - New users receive the next ID when their profile is completed for the first time.
 - MongoDB uses a `counters` collection to keep the next profile ID safe.
-- Use `/check <profileId>` to open a specific profile in DM or group chats.
+- Use `/check 1` to open a specific profile in DM or group chats.
 
 Example:
 
@@ -210,6 +210,35 @@ Webhook path is automatically set to:
 ```txt
 /webhook
 ```
+
+
+
+## Premium User System
+
+Premium users are stored in `models/PremiumUser.js`. Actual user profiles remain in `models/User.js`; premium status is checked separately and attached to profile captions when profiles are displayed.
+
+Only the Premium Owner can manage premium users:
+
+```env
+PREMIUM_OWNER_ID=8251006975
+```
+
+Commands:
+
+```bash
+/setpre 123456789 30days
+/setpre @username 30days
+/unpre 123456789
+/precheck 123456789
+```
+
+Notes:
+
+- `/setpre` accepts Telegram ID or username.
+- Username lookup works only when that user already exists in the bot database.
+- Premium profile cards use a separate premium header/text: `💎 Premium Cupid Profile` and show the premium expiry date.
+- Premium profile captions use Telegram custom emoji with HTML `<tg-emoji emoji-id="...">...</tg-emoji>` syntax and normal emoji fallback.
+- Expired premium records are treated as inactive automatically.
 
 ## Commands
 
@@ -339,7 +368,22 @@ Group behavior:
 
 - The normal reply menu is never shown in groups.
 - `/start` in a group only shows a DM button.
-- `/check <profileId>` can still work in groups, but the user must pass the required support membership check first.
+- `/check 1` can still work in groups, but the user must pass the required support membership check first.
 - Main Menu callback in a group is blocked and asks the user to use DM.
 
 For private support group/channel IDs, add the bot as admin with permission to create invite links. If you already have invite links, put them in `SUPPORT_GROUP_URL` and `SUPPORT_CHANNEL_URL`.
+
+
+### Group Quiet Mode / Required Join Fix
+
+- Group/supergroup ထဲမှာ bot menu/reply keyboard မပေါ်အောင် quiet mode ထည့်ထားသည်။
+- Group ထဲမှာ `/start` နှင့် `/check 1` ကိုသာခွင့်ပြုထားသည်။
+- `/start` မှာ Bot DM ဖွင့်ရန် deep-link button (`?start=main`) ပေးထားသည်။
+- `/check` ကို group ထဲမှာသုံးရင်လည်း `REQUIRE_SUPPORT_JOIN=true` ဖြစ်ပါက Support Group + Support Channel join status စစ်ပြီးမှ profile ပြသည်။
+
+
+## Premium Rich Message Profile Update
+
+Premium user profiles now use Telegram Bot API `sendRichMessage` with real rich HTML table syntax (`<table bordered striped>`) for the profile info block. The profile media is sent first, then the premium rich table message is sent below it with the existing inline buttons. Normal user profiles stay in the original text/caption style.
+
+If Telegram rejects `sendRichMessage` on a server/client that does not support Bot API 10.1 yet, the bot automatically falls back to the safe HTML caption text so the bot will not crash.
