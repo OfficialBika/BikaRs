@@ -7,7 +7,6 @@ const { requirePrivateChat } = require('../middlewares/privateOnly');
 const { escapeHtml, safeTextLength } = require('../utils/escapeHtml');
 const {
   BUTTON_STYLE,
-  premiumEmoji,
   callbackButton,
   inlineKeyboard,
   replyButton,
@@ -15,6 +14,7 @@ const {
   mainMenuKeyboard,
   genderLabel,
   buildProfileCaption,
+  buildPremiumProfileCaption,
   buildProfileButtons,
   buildDirectProfileButtons,
   reactionEmoji,
@@ -29,7 +29,7 @@ const {
   sendNewUserAlertToSupportChannel,
 } = require('../utils/media');
 const { ensureProfileId, isValidProfileId } = require('../utils/profileIds');
-const { attachPremiumToUser, formatPremiumUntil } = require('../utils/premium');
+const { attachPremiumToUser } = require('../utils/premium');
 
 function resetProfileSession(ctx) {
   ctx.session.profileFlow = {
@@ -173,7 +173,14 @@ async function sendOrEditProfileCard(ctx, user, gender, index, total, options = 
   const profileUser = await attachPremiumToUser(user);
   const caption = buildProfileCaption(profileUser, index, total);
   const keyboard = buildProfileButtons(profileUser, gender, index, total, options.isAdminView);
-  const sentMessages = await sendProfileCard(ctx, profileUser, caption, keyboard, { album: true });
+  const sentMessages = await sendProfileCard(ctx, profileUser, caption, keyboard, {
+    album: true,
+    premiumRich: true,
+    richTitle: 'PREMIUM CUPID PROFILE',
+    includePagination: true,
+    index,
+    total,
+  });
   rememberProfileUiMessages(ctx, sentMessages);
 }
 
@@ -213,31 +220,26 @@ async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) 
 function buildMyProfileCaption(user) {
   const mediaCount = normalizeProfileMedia(user).length;
   const isPremium = Boolean(user.premium?.isActive);
-  const icon = (key, fallback) => premiumEmoji(key, fallback, isPremium);
-  const header = isPremium
-    ? `${icon('diamond', '💎')} <b>ကျွန်ုပ်၏ Premium Profile</b>`
-    : '👤 <b>ကျွန်ုပ်၏ Profile</b>';
-  const premiumLines = isPremium
-    ? [
-        `${icon('crown', '👑')} <b>Premium User</b>`,
-        `${icon('hourglass', '⏳')} <b>Premium Until:</b> <code>${escapeHtml(formatPremiumUntil(user.premium?.expiresAt))}</code>`,
-        '',
-      ]
-    : [];
+  if (isPremium) {
+    return buildPremiumProfileCaption(user, {
+      title: 'ကျွန်ုပ်၏ PREMIUM PROFILE',
+      mediaCount,
+      includePagination: false,
+    });
+  }
 
   return [
-    header,
-    ...premiumLines,
-    `${icon('profileId', '🆔')} <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
-    `${icon('user', '👤')} <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
-    `${icon('gender', '⚧')} <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
-    `${icon('status', '💞')} <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
-    `${icon('age', '🎂')} <b>အသက်:</b> ${escapeHtml(user.age || '-')}`,
-    `${icon('height', '📏')} <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
-    `${icon('location', '📍')} <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
-    `${icon('hobby', '🎯')} <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
-    `${icon('username', '🆔')} <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
-    `${icon('media', '🖼')} <b>Media:</b> ${mediaCount}/${MAX_PROFILE_MEDIA}`,
+    '👤 <b>ကျွန်ုပ်၏ Profile</b>',
+    `🆔 <b>Profile ID:</b> <code>${escapeHtml(user.profileId || '-')}</code>`,
+    `👤 <b>နာမည်:</b> ${escapeHtml(user.profileName || '-')}`,
+    `⚧ <b>လိင်:</b> ${escapeHtml(genderLabel(user.gender))}`,
+    `💞 <b>လက်ရှိအခြေအနေ:</b> ${escapeHtml(user.relationshipStatus || '-')}`,
+    `🎂 <b>အသက်:</b> ${escapeHtml(user.age || '-')}`,
+    `📏 <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
+    `📍 <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
+    `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
+    `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `🖼 <b>Media:</b> ${mediaCount}/${MAX_PROFILE_MEDIA}`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
   ].join('\n');
@@ -262,7 +264,12 @@ async function showMyProfile(ctx) {
 
   const profileUser = await attachPremiumToUser(user);
   await cleanupProfileUi(ctx);
-  const sentMessages = await sendProfileCard(ctx, profileUser, buildMyProfileCaption(profileUser), myProfileKeyboard(profileUser), { album: true });
+  const sentMessages = await sendProfileCard(ctx, profileUser, buildMyProfileCaption(profileUser), myProfileKeyboard(profileUser), {
+    album: true,
+    premiumRich: true,
+    richTitle: 'ကျွန်ုပ်၏ PREMIUM PROFILE',
+    includePagination: false,
+  });
   rememberProfileUiMessages(ctx, sentMessages);
 }
 
@@ -272,7 +279,7 @@ async function showProfileByProfileId(ctx, profileId) {
 
   const id = Number(profileId);
   if (!isValidProfileId(id)) {
-    await ctx.reply('အသုံးပြုပုံ - /check <profileId>\nဥပမာ - /check 1', contextMenuKeyboard(ctx));
+    await ctx.reply('အသုံးပြုပုံ - /check 1\nဥပမာ - /check 1', contextMenuKeyboard(ctx));
     return;
   }
 
@@ -289,7 +296,14 @@ async function showProfileByProfileId(ctx, profileId) {
 
   const profileUser = await attachPremiumToUser(user);
   await cleanupProfileUi(ctx, { includeCurrentCallback: true });
-  const sentMessages = await sendProfileCard(ctx, profileUser, buildProfileCaption(profileUser, 0, 1), buildDirectProfileButtons(profileUser), { album: true });
+  const sentMessages = await sendProfileCard(ctx, profileUser, buildProfileCaption(profileUser, 0, 1), buildDirectProfileButtons(profileUser), {
+    album: true,
+    premiumRich: true,
+    richTitle: 'PREMIUM CUPID PROFILE',
+    includePagination: true,
+    index: 0,
+    total: 1,
+  });
   rememberProfileUiMessages(ctx, sentMessages);
 }
 
