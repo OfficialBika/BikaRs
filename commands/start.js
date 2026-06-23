@@ -74,7 +74,7 @@ function premiumInfoText() {
     '• Profile information တွေကို normal user ထက်ပိုပြီး premium look နဲ့ဖော်ပြပါမယ်။',
     '• နောက်ထပ် Premium feature အသစ်တွေကို ဦးစားပေးအသုံးပြုနိုင်ပါမယ်။',
     '',
-    `${startEmoji('gift')} <b>Premium Price</b> - <code>2500 ကျပ်</code>`,
+    `${startEmoji('gift')} <b>Premium Price 1m</b> - <code>2500 ကျပ်</code>`,
     `${startEmoji('heart')} <b>ဝယ်ယူရန်</b> - <a href="https://t.me/Official_Bika">@Official_Bika</a>`,
   ].join('\n');
 }
