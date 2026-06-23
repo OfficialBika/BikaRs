@@ -4,7 +4,7 @@ Telegram Cupid profile bot built with Node.js, Telegraf, Express, and MongoDB.
 
 ## Features
 
-- Start screen with Support Group, Support Channel, and Main Menu buttons
+- Start screen with Support Group, Support Channel, Premium Info, and Main Menu buttons
 - Main reply menu appears only after tapping Main Menu
 - Profile create/edit flow
 - Sequential public Profile ID for completed profiles
@@ -98,10 +98,12 @@ The `/start` message sends only an inline keyboard:
 
 ```txt
 Support Group | Support Channel
+Premium အကြောင်း
 Main Menu
 ```
 
 - Support Group and Support Channel buttons use `primary` style.
+- Premium Info uses `primary` style.
 - Main Menu uses `success` style.
 - The normal reply menu appears only after tapping Main Menu.
 
@@ -240,6 +242,19 @@ Notes:
 - Premium profile captions use Telegram custom emoji with HTML `<tg-emoji emoji-id="...">...</tg-emoji>` syntax and normal emoji fallback.
 - Expired premium records are treated as inactive automatically.
 
+### Start Premium Info Button
+
+The `/start` inline menu includes `💎 Premium အကြောင်း`. Tapping it deletes the old start message and sends a premium information page. The premium page includes:
+
+```txt
+Premium User benefits
+Premium Price - 2500 ကျပ်
+ဝယ်ယူရန် - @Official_Bika
+Back To Menu button
+```
+
+Buttons use the existing `BUTTON_STYLE` color system. The `⬅️ Back To Menu` button deletes the old premium info message and returns to the `/start` menu.
+
 ## Commands
 
 User commands:
@@ -351,6 +366,7 @@ Flow:
 ```txt
 /start
 Support Group | Support Channel
+Premium အကြောင်း
 Main Menu
 ```
 
@@ -386,4 +402,14 @@ For private support group/channel IDs, add the bot as admin with permission to c
 
 Premium user profiles now use Telegram Bot API `sendRichMessage` with real rich HTML table syntax (`<table bordered striped>`) for the profile info block. The profile media is sent first, then the premium rich table message is sent below it with the existing inline buttons. Normal user profiles stay in the original text/caption style.
 
+Support Channel premium alerts also keep Rich Message entity detection enabled so `<tg-emoji>` custom emoji tags render like the DM premium profile table instead of falling back to normal emoji.
+
 If Telegram rejects `sendRichMessage` on a server/client that does not support Bot API 10.1 yet, the bot automatically falls back to the safe HTML caption text so the bot will not crash.
+
+## Premium Browse Priority
+
+- `👧 Girls List` and `👦 Boys List` now show active Premium users first.
+- After active Premium users, profiles are ordered by `profileId` ascending.
+- `🎲 ကျပန်း Profile ကြည့်ရန်` now randomly selects from Premium users first across both boy/girl profiles.
+- If there are no active Premium profiles available, random profile selection falls back to normal users randomly.
+
