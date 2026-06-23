@@ -21,7 +21,7 @@ const START_CUSTOM_EMOJI = {
   cupid: '<tg-emoji emoji-id="5370765979838064237">💘</tg-emoji>',
   media: '<tg-emoji emoji-id="5895427227528467580">📸</tg-emoji>',
   user: '<tg-emoji emoji-id="4967667085606912536">👤</tg-emoji>',
-  heart: '<tg-emoji emoji-id="5255861796350224063">❤️</tg-emoji>',
+  heart: '<tg-emoji emoji-id="4967523779728114410">❤️</tg-emoji>',
   gift: '<tg-emoji emoji-id="5875244652218553296">🎁</tg-emoji>',
   crown: '<tg-emoji emoji-id="5433758796289685818">👑</tg-emoji>',
 };
@@ -67,6 +67,7 @@ function premiumInfoText() {
     'Bot မှာ <b>Premium User</b> အဖြစ် အသုံးပြုချင်သူများက အောက်က Premium အကြောင်း button ကိုနှိပ်ပြီး အချက်အလက်များကို ဖတ်ရှုနိုင်ပါတယ်။',
     '',
     `${startEmoji('premiumMark')} <b>Premium User ရရှိမည့် အကျိုးခံစားခွင့်များ</b>`,
+    '• Boy list / Girl list ရှာတဲ့နေရာနဲ့ ကျပန်း profile ရှာတဲ့နေရာမှာ ရှေ့ဆုံးကပြပေးပါတယ်။',
     '• Profile card မှာ Premium badge / custom emoji ပေါ်ပါမယ်။',
     '• Premium profile text ကို သီးသန့် Rich Message style နဲ့ ပိုလှအောင်ပြပါမယ်။',
     '• Support Channel Alert မှာ Premium User အဖြစ် သီးသန့် highlight ပေါ်ပါမယ်။',
