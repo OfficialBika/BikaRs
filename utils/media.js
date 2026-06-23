@@ -143,20 +143,32 @@ function isPremiumUser(user = {}) {
 }
 
 async function sendRichMessage(ctx, chatId, html, keyboard, fallbackText, extra = {}) {
+  const {
+    skipEntityDetection = false,
+    fallbackParseMode = 'HTML',
+    ...apiExtra
+  } = extra || {};
+
+  const richMessage = { html };
+
+  // Important: keep entity detection enabled by default so <tg-emoji> custom
+  // emoji tags inside channel rich messages are preserved. Setting this to true
+  // can make Telegram render only the fallback normal emoji in some channel UI.
+  if (typeof skipEntityDetection === 'boolean') {
+    richMessage.skip_entity_detection = skipEntityDetection;
+  }
+
   try {
     return await ctx.telegram.callApi('sendRichMessage', {
       chat_id: chatId,
-      rich_message: {
-        html,
-        skip_entity_detection: true,
-      },
+      rich_message: richMessage,
       reply_markup: keyboard?.reply_markup,
-      ...extra,
+      ...apiExtra,
     });
   } catch (error) {
     console.error('SEND_RICH_MESSAGE_FALLBACK:', error?.response?.description || error?.description || error?.message || error);
     return ctx.telegram.sendMessage(chatId, fallbackText, {
-      parse_mode: 'HTML',
+      parse_mode: fallbackParseMode,
       disable_web_page_preview: true,
       reply_markup: keyboard?.reply_markup,
     });
@@ -462,7 +474,9 @@ async function sendNewUserAlertToSupportChannel(ctx, user) {
     const fallbackText = buildNewUserAlertText(user);
 
     if (isPremiumUser(user)) {
-      await sendRichMessage(ctx, SUPPORT_CHANNEL_ID, buildNewUserAlertRichHtml(user), alertKeyboard, fallbackText);
+      await sendRichMessage(ctx, SUPPORT_CHANNEL_ID, buildNewUserAlertRichHtml(user), alertKeyboard, fallbackText, {
+        skipEntityDetection: false,
+      });
       return;
     }
 
