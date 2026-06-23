@@ -38,8 +38,55 @@ function startKeyboard() {
 
   return inlineKeyboard([
     [groupButton, channelButton],
+    [callbackButton('💎 Premium အကြောင်း', 'premium:info', BUTTON_STYLE.PRIMARY)],
     [callbackButton('🏠 Main Menu', 'main:menu', BUTTON_STYLE.SUCCESS)],
   ]);
+}
+
+function premiumInfoText() {
+  return [
+    '💎 <b>Premium User အကြောင်း</b>',
+    '',
+    'Bot မှာ <b>Premium User</b> အဖြစ် အသုံးပြုချင်သူများက အောက်က Premium အကြောင်း button ကိုနှိပ်ပြီး အချက်အလက်များကို ဖတ်ရှုနိုင်ပါတယ်။',
+    '',
+    '✨ <b>Premium User ရရှိမည့် အကျိုးခံစားခွင့်များ</b>',
+    '• Profile card မှာ Premium badge / custom emoji ပေါ်ပါမယ်။',
+    '• Premium profile text ကို သီးသန့် Rich Message style နဲ့ ပိုလှအောင်ပြပါမယ်။',
+    '• Support Channel Alert မှာ Premium User အဖြစ် သီးသန့် highlight ပေါ်ပါမယ်။',
+    '• Profile information တွေကို normal user ထက်ပိုပြီး premium look နဲ့ဖော်ပြပါမယ်။',
+    '• နောက်ထပ် Premium feature အသစ်တွေကို ဦးစားပေးအသုံးပြုနိုင်ပါမယ်။',
+    '',
+    '💰 <b>Premium Price</b> - <code>2500 ကျပ်</code>',
+    '🛒 <b>ဝယ်ယူရန်</b> - <a href="https://t.me/Official_Bika">@Official_Bika</a>',
+  ].join('\n');
+}
+
+function premiumInfoKeyboard() {
+  return inlineKeyboard([
+    [urlButton('🛒 ဝယ်ယူရန်', 'https://t.me/Official_Bika', BUTTON_STYLE.SUCCESS)],
+    [callbackButton('⬅️ Back To Menu', 'start:back', BUTTON_STYLE.PRIMARY)],
+  ]);
+}
+
+async function safeDeleteCallbackMessage(ctx) {
+  try {
+    await ctx.deleteMessage();
+  } catch (_) {}
+}
+
+async function sendStartMessage(ctx) {
+  await ctx.reply(startText(), {
+    parse_mode: 'HTML',
+    reply_markup: startKeyboard().reply_markup,
+  });
+}
+
+async function sendPremiumInfo(ctx) {
+  await ctx.reply(premiumInfoText(), {
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    reply_markup: premiumInfoKeyboard().reply_markup,
+  });
 }
 
 function dmOnlyKeyboard(ctx) {
@@ -163,10 +210,23 @@ function registerStartCommands(bot) {
       return;
     }
 
-    await ctx.reply(startText(), {
-      parse_mode: 'HTML',
-      reply_markup: startKeyboard().reply_markup,
-    });
+    await sendStartMessage(ctx);
+  });
+
+  bot.action('premium:info', async (ctx) => {
+    if (!(await requirePrivateChat(ctx))) return;
+
+    await ctx.answerCbQuery().catch(() => {});
+    await safeDeleteCallbackMessage(ctx);
+    await sendPremiumInfo(ctx);
+  });
+
+  bot.action('start:back', async (ctx) => {
+    if (!(await requirePrivateChat(ctx))) return;
+
+    await ctx.answerCbQuery().catch(() => {});
+    await safeDeleteCallbackMessage(ctx);
+    await sendStartMessage(ctx);
   });
 
   bot.action('support:group', async (ctx) => openSupport(ctx, 'group'));
@@ -192,4 +252,6 @@ module.exports = {
   registerStartCommands,
   sendHelp,
   startKeyboard,
+  premiumInfoText,
+  premiumInfoKeyboard,
 };

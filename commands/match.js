@@ -3,7 +3,7 @@ const Reaction = require('../models/Reaction');
 const Report = require('../models/Report');
 const { requirePrivateChat } = require('../middlewares/privateOnly');
 const { reactionEmoji, mainMenuKeyboard } = require('../utils/keyboards');
-const { getProfileByTelegramId, getBrowseList, showGenderList } = require('./profile');
+const { getProfileByTelegramId, getBrowseList, showGenderList, isPremiumActiveUser } = require('./profile');
 
 function registerMatchCommands(bot) {
   bot.hears('👧 Girls List', async (ctx) => {
@@ -37,15 +37,34 @@ function registerMatchCommands(bot) {
       return;
     }
 
-    const genders = ['female', 'male'];
-    const gender = genders[Math.floor(Math.random() * genders.length)];
-    const list = await getBrowseList(gender, ctx.from.id);
-    if (!list.length) {
+    const genderLists = await Promise.all(
+      ['female', 'male'].map(async (gender) => ({
+        gender,
+        list: await getBrowseList(gender, ctx.from.id),
+      }))
+    );
+
+    const premiumPool = genderLists.flatMap(({ gender, list }) =>
+      list.filter((user) => isPremiumActiveUser(user)).map((user) => ({ gender, user }))
+    );
+    const normalPool = genderLists.flatMap(({ gender, list }) =>
+      list.filter((user) => !isPremiumActiveUser(user)).map((user) => ({ gender, user }))
+    );
+
+    const pool = premiumPool.length ? premiumPool : normalPool;
+    if (!pool.length) {
       await ctx.reply('ကြည့်ရှုရန် profile မရှိသေးပါ။', mainMenuKeyboard());
       return;
     }
-    const index = Math.floor(Math.random() * list.length);
-    await showGenderList(ctx, gender, index);
+
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    const targetList = genderLists.find((item) => item.gender === picked.gender)?.list || [];
+    const index = Math.max(
+      0,
+      targetList.findIndex((user) => Number(user.telegramId) === Number(picked.user.telegramId))
+    );
+
+    await showGenderList(ctx, picked.gender, index);
   });
 
   bot.action(/^nav:(male|female):(\d+)$/, async (ctx) => {

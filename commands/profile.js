@@ -29,7 +29,7 @@ const {
   sendNewUserAlertToSupportChannel,
 } = require('../utils/media');
 const { ensureProfileId, isValidProfileId } = require('../utils/profileIds');
-const { attachPremiumToUser } = require('../utils/premium');
+const { attachPremiumToUser, attachPremiumToUsers } = require('../utils/premium');
 
 function resetProfileSession(ctx) {
   ctx.session.profileFlow = {
@@ -156,21 +156,50 @@ async function getProfileByTelegramId(telegramId) {
   return User.findOne({ telegramId: Number(telegramId) });
 }
 
+function isPremiumActiveUser(user = {}) {
+  return Boolean(user?.premium?.isActive);
+}
+
+function profileSortValue(user = {}) {
+  const profileId = Number(user.profileId || 0);
+  if (Number.isFinite(profileId) && profileId > 0) return profileId;
+
+  const createdAt = user.createdAt ? new Date(user.createdAt).getTime() : 0;
+  if (Number.isFinite(createdAt) && createdAt > 0) return createdAt;
+
+  return Number(user.telegramId || 0);
+}
+
+function sortBrowseProfiles(users = []) {
+  return [...users].sort((a, b) => {
+    const premiumDiff = Number(isPremiumActiveUser(b)) - Number(isPremiumActiveUser(a));
+    if (premiumDiff !== 0) return premiumDiff;
+
+    const idDiff = profileSortValue(a) - profileSortValue(b);
+    if (idDiff !== 0) return idDiff;
+
+    return Number(a.telegramId || 0) - Number(b.telegramId || 0);
+  });
+}
+
 async function getBrowseList(gender, viewerId) {
-  return User.find({
+  const users = await User.find({
     gender,
     isProfileComplete: true,
     isBanned: false,
     isHidden: false,
     telegramId: { $ne: Number(viewerId) },
   })
-    .sort({ createdAt: 1, telegramId: 1 })
+    .sort({ profileId: 1, createdAt: 1, telegramId: 1 })
     .lean();
+
+  const usersWithPremium = await attachPremiumToUsers(users);
+  return sortBrowseProfiles(usersWithPremium);
 }
 
 async function sendOrEditProfileCard(ctx, user, gender, index, total, options = {}) {
   await cleanupProfileUi(ctx, { includeCurrentCallback: true });
-  const profileUser = await attachPremiumToUser(user);
+  const profileUser = user?.premium ? user : await attachPremiumToUser(user);
   const caption = buildProfileCaption(profileUser, index, total);
   const keyboard = buildProfileButtons(profileUser, gender, index, total, options.isAdminView);
   const sentMessages = await sendProfileCard(ctx, profileUser, caption, keyboard, {
@@ -911,6 +940,8 @@ module.exports = {
   ensureSessionDefaults,
   getProfileByTelegramId,
   getBrowseList,
+  sortBrowseProfiles,
+  isPremiumActiveUser,
   showGenderList,
   showMyProfile,
   showProfileByProfileId,
