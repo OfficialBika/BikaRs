@@ -15,15 +15,32 @@ const {
   mainMenuKeyboard,
 } = require('../utils/keyboards');
 
+const START_CUSTOM_EMOJI = {
+  arrow: '<tg-emoji emoji-id="6129727906957496149">▶️</tg-emoji>',
+  premiumMark: '<tg-emoji emoji-id="5949775417274536507">⭕️</tg-emoji>',
+  cupid: '<tg-emoji emoji-id="5370765979838064237">💘</tg-emoji>',
+  media: '<tg-emoji emoji-id="5895427227528467580">📸</tg-emoji>',
+  user: '<tg-emoji emoji-id="4967667085606912536">👤</tg-emoji>',
+  heart: '<tg-emoji emoji-id="5255861796350224063">❤️</tg-emoji>',
+  gift: '<tg-emoji emoji-id="5875244652218553296">🎁</tg-emoji>',
+  crown: '<tg-emoji emoji-id="5433758796289685818">👑</tg-emoji>',
+};
+
+function startEmoji(name) {
+  return START_CUSTOM_EMOJI[name] || '';
+}
+
 function startText() {
   return [
-    '💘 <b>Cupid Bot မှ ကြိုဆိုပါသည်။</b>',
+    `${startEmoji('arrow')} <b>${startEmoji('cupid')} Cupid Bot မှ ကြိုဆိုပါသည်။</b>`,
     '',
-    'ဒီ bot မှာ ကိုယ့် profile ဖြည့်ပြီး photo/video 1-3 ခုထည့်နိုင်ပါတယ်။',
-    'တခြား user များ၏ profile ကိုလည်း ကြည့်ရှုနိုင်ပါသည်။',
+    `${startEmoji('arrow')} ${startEmoji('media')} ဒီ bot မှာ ကိုယ့် profile ဖြည့်ပြီး photo/video 1-3 ခုထည့်နိုင်ပါတယ်။`,
+    `${startEmoji('arrow')} ${startEmoji('user')} တခြား user များ၏ profile ကိုလည်း ကြည့်ရှုနိုင်ပါသည်။`,
     '',
-    'အသုံးပြုရန် Support Group နှင့် Support Channel ကို join ထားရပါမယ်။',
-    'Join ပြီးမှ <b>Main Menu</b> ကိုနှိပ်ပြီး စတင်အသုံးပြုပါ။',
+    `<blockquote><b>${startEmoji('arrow')} ${startEmoji('premiumMark')} Bot မှာ Premium User အဖြစ် အသုံးပြုချင်သူများက\n${startEmoji('arrow')} အောက်က Premium အကြောင်း button ကိုနှိပ်ပေးပါ။</b></blockquote>`,
+    '',
+    `${startEmoji('arrow')} ${startEmoji('gift')} အသုံးပြုရန် Support Group နှင့် Support Channel ကို join ထားရပါမယ်။`,
+    `${startEmoji('arrow')} Join ပြီးမှ <b>Main Menu</b> ကိုနှိပ်ပြီး စတင်အသုံးပြုပါ။`,
   ].join('\n');
 }
 
@@ -45,19 +62,19 @@ function startKeyboard() {
 
 function premiumInfoText() {
   return [
-    '💎 <b>Premium User အကြောင်း</b>',
+    `${startEmoji('crown')} <b>Premium User အကြောင်း</b>`,
     '',
     'Bot မှာ <b>Premium User</b> အဖြစ် အသုံးပြုချင်သူများက အောက်က Premium အကြောင်း button ကိုနှိပ်ပြီး အချက်အလက်များကို ဖတ်ရှုနိုင်ပါတယ်။',
     '',
-    '✨ <b>Premium User ရရှိမည့် အကျိုးခံစားခွင့်များ</b>',
+    `${startEmoji('premiumMark')} <b>Premium User ရရှိမည့် အကျိုးခံစားခွင့်များ</b>`,
     '• Profile card မှာ Premium badge / custom emoji ပေါ်ပါမယ်။',
     '• Premium profile text ကို သီးသန့် Rich Message style နဲ့ ပိုလှအောင်ပြပါမယ်။',
     '• Support Channel Alert မှာ Premium User အဖြစ် သီးသန့် highlight ပေါ်ပါမယ်။',
     '• Profile information တွေကို normal user ထက်ပိုပြီး premium look နဲ့ဖော်ပြပါမယ်။',
     '• နောက်ထပ် Premium feature အသစ်တွေကို ဦးစားပေးအသုံးပြုနိုင်ပါမယ်။',
     '',
-    '💰 <b>Premium Price</b> - <code>2500 ကျပ်</code>',
-    '🛒 <b>ဝယ်ယူရန်</b> - <a href="https://t.me/Official_Bika">@Official_Bika</a>',
+    `${startEmoji('gift')} <b>Premium Price</b> - <code>2500 ကျပ်</code>`,
+    `${startEmoji('heart')} <b>ဝယ်ယူရန်</b> - <a href="https://t.me/Official_Bika">@Official_Bika</a>`,
   ].join('\n');
 }
 
@@ -97,7 +114,7 @@ function dmOnlyKeyboard(ctx) {
 
 async function sendGroupDmOnlyNotice(ctx) {
   const keyboard = dmOnlyKeyboard(ctx);
-  await ctx.reply('💘 Cupid Bot menu ကို DM ထဲမှာပဲ အသုံးပြုနိုင်ပါတယ်။', keyboard ? {
+  await ctx.reply(`${startEmoji('cupid')} Cupid Bot menu ကို DM ထဲမှာပဲ အသုံးပြုနိုင်ပါတယ်။`, keyboard ? {
     reply_markup: keyboard.reply_markup,
   } : undefined);
 }
