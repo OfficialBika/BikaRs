@@ -8,6 +8,8 @@ const { escapeHtml } = require('./escapeHtml');
 const {
   BUTTON_STYLE,
   premiumEmoji,
+  telegramDisplayName,
+  telegramMentionHtml,
   formatPremiumDate,
   buildPremiumInfoTable,
   buildPremiumProfileRichHtml,
@@ -30,10 +32,7 @@ function mentionFromTelegramUser(from = {}) {
 }
 
 function mentionFromProfile(user = {}) {
-  const id = Number(user.telegramId);
-  const name = escapeHtml(user.profileName || user.tgFirstName || user.username || `User ${id || ''}`.trim() || 'Unknown User');
-  if (!Number.isFinite(id) || id <= 0) return name;
-  return `<a href="tg://user?id=${id}">${name}</a>`;
+  return telegramMentionHtml(user);
 }
 
 function extractMediaFromMessage(message = {}) {
@@ -351,7 +350,7 @@ function buildNewUserAlertRichHtml(user) {
   const rows = [
     [icon('profileId', '🪪') + ' Profile ID', `<code>${escapeHtml(user.profileId || '-')}</code>`],
     [icon('profileId', '🪪') + ' Telegram ID', `<code>${escapeHtml(user.telegramId || '-')}</code>`],
-    [icon('username', '❤️') + ' Username', user.username ? `<code>@${escapeHtml(user.username)}</code>` : '-'],
+    [icon('username', '❤️') + ' Telegram Account', mentionFromProfile(user)],
     [icon('user', '👤') + ' Name', escapeHtml(user.profileName || '-')],
     [icon('gender', '🔞') + ' Gender', escapeHtml(user.gender || '-')],
     [icon('status', '💕') + ' Status', escapeHtml(user.relationshipStatus || '-')],
@@ -381,7 +380,7 @@ function buildNewUserAlertText(user) {
     const table = buildPremiumInfoTable([
       ['Profile ID', user.profileId || '-'],
       ['Telegram ID', user.telegramId || '-'],
-      ['Username', user.username ? `@${user.username}` : '-'],
+      ['Telegram', telegramDisplayName(user)],
       ['Name', user.profileName || '-'],
       ['Gender', user.gender || '-'],
       ['Status', user.relationshipStatus || '-'],
@@ -410,7 +409,7 @@ function buildNewUserAlertText(user) {
     `👤 User: ${mentionFromProfile(user)}`,
     `🆔 Profile ID: <code>${escapeHtml(user.profileId || '-')}</code>`,
     `🆔 Telegram ID: <code>${user.telegramId || '-'}</code>`,
-    `🧾 Username: ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `👤 Telegram Account: ${mentionFromProfile(user)}`,
     '',
     '💘 <b>User Info</b>',
     `👤 နာမည်: <b>${escapeHtml(user.profileName || '-')}</b>`,

@@ -86,9 +86,11 @@ function mainMenuKeyboard() {
   ]);
 }
 
-function profileOpenUrl(user) {
+function profileOpenUrl(user = {}) {
+  const id = Number(user.telegramId);
+  if (Number.isFinite(id) && id > 0) return `tg://user?id=${id}`;
   if (user.username) return `https://t.me/${user.username}`;
-  return `tg://user?id=${user.telegramId}`;
+  return 'https://t.me/';
 }
 
 function genderLabel(value) {
@@ -140,8 +142,20 @@ function buildPremiumInfoTable(rows = []) {
   return [top, ...body, bottom].join('\n');
 }
 
-function premiumTableUsername(user = {}) {
-  return user.username ? `@${user.username}` : '-';
+function telegramDisplayName(user = {}) {
+  const fullName = [user.tgFirstName, user.tgLastName].filter(Boolean).join(' ').trim();
+  return fullName || user.profileName || user.username || `User ${user.telegramId || ''}`.trim() || 'Telegram User';
+}
+
+function telegramMentionHtml(user = {}) {
+  const id = Number(user.telegramId);
+  const name = escapeHtml(telegramDisplayName(user));
+  if (!Number.isFinite(id) || id <= 0) return name;
+  return `<a href="tg://user?id=${id}">${name}</a>`;
+}
+
+function premiumTableAccount(user = {}) {
+  return telegramDisplayName(user);
 }
 
 function buildPremiumProfileCaption(user, options = {}) {
@@ -161,13 +175,14 @@ function buildPremiumProfileCaption(user, options = {}) {
     ['Height', user.height || '-'],
     ['Address', user.address || '-'],
     ['Hobby', user.hobby || '-'],
-    ['Username', premiumTableUsername(user)],
+    ['Telegram', premiumTableAccount(user)],
     ['Media', `${mediaCount}/${3}`],
   ]);
 
   const lines = [
     `${premiumEmoji('diamond', '💎', true)} <b>${escapeHtml(title)}</b>`,
     `${premiumEmoji('crown', '👑', true)} <b>Premium User</b>   ${premiumEmoji('hourglass', '⏳', true)} <code>${escapeHtml(until)}</code>`,
+    `${premiumEmoji('user', '👤', true)} <b>Telegram Account:</b> ${telegramMentionHtml(user)}`,
     '',
     `<pre>${escapeHtml(table)}</pre>`,
     '',
@@ -217,7 +232,7 @@ function buildPremiumProfileRichHtml(user, options = {}) {
     [premiumEmoji('height', '🤩', true) + ' Height', richCell(user.height || '-')],
     [premiumEmoji('location', '📍', true) + ' Address', richCell(user.address || '-')],
     [premiumEmoji('hobby', '🎁', true) + ' Hobby', richCell(user.hobby || '-')],
-    [premiumEmoji('username', '❤️', true) + ' Username', user.username ? `<code>@${richCell(user.username)}</code>` : '-'],
+    [premiumEmoji('username', '❤️', true) + ' Telegram Account', telegramMentionHtml(user)],
     [premiumEmoji('media', '🖼', true) + ' Media', `<b>${richCell(`${mediaCount}/${3}`)}</b>`],
   ];
 
@@ -256,7 +271,7 @@ function buildProfileCaption(user, index, total) {
     `${premiumEmoji('height', '📏', false)} <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
     `${premiumEmoji('location', '📍', false)} <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
     `${premiumEmoji('hobby', '🎯', false)} <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
-    `${premiumEmoji('username', '🆔', false)} <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `${premiumEmoji('username', '🆔', false)} <b>Telegram Account:</b> ${telegramMentionHtml(user)}`,
     `${premiumEmoji('media', '🖼', false)} <b>Media:</b> ${Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0)}/3`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
@@ -321,6 +336,8 @@ module.exports = {
   replyKeyboard,
   mainMenuKeyboard,
   profileOpenUrl,
+  telegramDisplayName,
+  telegramMentionHtml,
   genderLabel,
   reactionEmoji,
   formatPremiumDate,
