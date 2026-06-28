@@ -17,6 +17,7 @@ const {
   buildPremiumProfileCaption,
   buildProfileButtons,
   buildDirectProfileButtons,
+  telegramMentionHtml,
   reactionEmoji,
 } = require('../utils/keyboards');
 const {
@@ -267,7 +268,7 @@ function buildMyProfileCaption(user) {
     `📏 <b>အရပ်အမြင့်:</b> ${escapeHtml(user.height || '-')}`,
     `📍 <b>နေရပ်လိပ်စာ:</b> ${escapeHtml(user.address || '-')}`,
     `🎯 <b>ဝါသနာ:</b> ${escapeHtml(user.hobby || '-')}`,
-    `🆔 <b>Username:</b> ${user.username ? `@${escapeHtml(user.username)}` : 'မရှိသေးပါ'}`,
+    `🆔 <b>Telegram Account:</b> ${telegramMentionHtml(user)}`,
     `🖼 <b>Media:</b> ${mediaCount}/${MAX_PROFILE_MEDIA}`,
     '',
     `👍 ${user.reactions?.like || 0}   ❤ ${user.reactions?.love || 0}   🤣 ${user.reactions?.laugh || 0}`,
@@ -491,15 +492,6 @@ async function finishProfileFlow(ctx) {
 
   if (!media.length) {
     await promptMediaUpload(ctx, 'အနည်းဆုံး photo/video 1 ခုလိုအပ်ပါတယ်။');
-    return;
-  }
-
-  if (!ctx.from.username) {
-    await ctx.reply(
-      'Telegram username မရှိသေးပါ။ Settings ထဲမှာ username သတ်မှတ်ပြီးနောက် profile ကို ပြန်ဖြည့်ပေးပါ။',
-      mainMenuKeyboard()
-    );
-    resetProfileSession(ctx);
     return;
   }
 
