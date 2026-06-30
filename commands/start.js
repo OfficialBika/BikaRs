@@ -37,7 +37,7 @@ function startText() {
     `${startEmoji('arrow')} ${startEmoji('media')} ဒီ bot မှာ ကိုယ့် profile ဖြည့်ပြီး photo/video 1-3 ခုထည့်နိုင်ပါတယ်။`,
     `${startEmoji('arrow')} ${startEmoji('user')} တခြား user များ၏ profile ကိုလည်း ကြည့်ရှုနိုင်ပါသည်။`,
     '',
-    `<blockquote><b>${startEmoji('arrow')} ${startEmoji('premiumMark')} Bot မှာ Premium User အဖြစ် အသုံးပြုချင်သူများက\n${startEmoji('arrow')} အောက်က Premium အကြောင်း button ကိုနှိပ်ပေးပါ။</b></blockquote>`,
+    `<blockquote><b>${startEmoji('arrow')} ${startEmoji('premiumMark')} Bot မှာ VIP User အဖြစ် အသုံးပြုချင်သူများက\n${startEmoji('arrow')} အောက်က VIP အကြောင်း button ကိုနှိပ်ပေးပါ။</b></blockquote>`,
     '',
     `${startEmoji('arrow')} ${startEmoji('gift')} အသုံးပြုရန် Support Group နှင့် Support Channel ကို join ထားရပါမယ်။`,
     `${startEmoji('arrow')} Join ပြီးမှ <b>Main Menu</b> ကိုနှိပ်ပြီး စတင်အသုံးပြုပါ။`,
@@ -55,26 +55,26 @@ function startKeyboard() {
 
   return inlineKeyboard([
     [groupButton, channelButton],
-    [callbackButton('💎 Premium အကြောင်း', 'premium:info', BUTTON_STYLE.PRIMARY)],
+    [callbackButton('💎 VIP အကြောင်း', 'premium:info', BUTTON_STYLE.PRIMARY)],
     [callbackButton('🏠 Main Menu', 'main:menu', BUTTON_STYLE.SUCCESS)],
   ]);
 }
 
 function premiumInfoText() {
   return [
-    `${startEmoji('crown')} <b>Premium User အကြောင်း</b>`,
+    `${startEmoji('crown')} <b>VIP User အကြောင်း</b>`,
     '',
-    'Bot မှာ <b>Premium User</b> အဖြစ် အသုံးပြုချင်သူများက အောက်က Premium အကြောင်း button ကိုနှိပ်ပြီး အချက်အလက်များကို ဖတ်ရှုနိုင်ပါတယ်။',
+    'Bot မှာ <b>VIP User</b> အဖြစ် အသုံးပြုချင်သူများက အောက်က VIP အကြောင်း button ကိုနှိပ်ပြီး အချက်အလက်များကို ဖတ်ရှုနိုင်ပါတယ်။',
     '',
-    `${startEmoji('premiumMark')} <b>Premium User ရရှိမည့် အကျိုးခံစားခွင့်များ</b>`,
+    `${startEmoji('premiumMark')} <b>VIP User ရရှိမည့် အကျိုးခံစားခွင့်များ</b>`,
     '• Boy list / Girl list ရှာတဲ့နေရာနဲ့ ကျပန်း profile ရှာတဲ့နေရာမှာ ရှေ့ဆုံးကပြပေးပါတယ်။',
-    '• Profile card မှာ Premium badge / custom emoji ပေါ်ပါမယ်။',
-    '• Premium profile text ကို သီးသန့် Rich Message style နဲ့ ပိုလှအောင်ပြပါမယ်။',
-    '• Support Channel Alert မှာ Premium User အဖြစ် သီးသန့် highlight ပေါ်ပါမယ်။',
-    '• Profile information တွေကို normal user ထက်ပိုပြီး premium look နဲ့ဖော်ပြပါမယ်။',
-    '• နောက်ထပ် Premium feature အသစ်တွေကို ဦးစားပေးအသုံးပြုနိုင်ပါမယ်။',
+    '• Profile card မှာ VIP badge / custom emoji ပေါ်ပါမယ်။',
+    '• VIP profile text ကို သီးသန့် Rich Message style နဲ့ ပိုလှအောင်ပြပါမယ်။',
+    '• Support Channel Alert မှာ VIP User အဖြစ် သီးသန့် highlight ပေါ်ပါမယ်။',
+    '• Profile information တွေကို normal user ထက်ပိုပြီး VIP look နဲ့ဖော်ပြပါမယ်။',
+    '• နောက်ထပ် VIP feature အသစ်တွေကို ဦးစားပေးအသုံးပြုနိုင်ပါမယ်။',
     '',
-    `${startEmoji('gift')} <b>Premium Price 1လ</b> - <code>1500 ကျပ်</code>`,
+    `${startEmoji('gift')} <b>VIP Price 1လ</b> - <code>1500 ကျပ်</code>`,
     `${startEmoji('heart')} <b>ဝယ်ယူရန်</b> - <a href="https://t.me/Official_Bika">@Official_Bika</a>`,
   ].join('\n');
 }

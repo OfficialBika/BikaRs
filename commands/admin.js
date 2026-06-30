@@ -114,7 +114,7 @@ async function sendReportedProfileCard(ctx, report, target, reporter, currentInd
 
 function premiumUsage() {
   return [
-    '💎 <b>Premium Commands</b>',
+    '💎 <b>VIP Commands</b>',
     '',
     '<code>/setpre userId 30days</code>',
     '<code>/setpre @username 30days</code>',
@@ -128,7 +128,7 @@ function premiumUsage() {
 async function requirePremiumOwner(ctx, options = {}) {
   if (isPremiumOwner(ctx.from?.id)) return true;
   if (!options.silent) {
-    await ctx.reply('ဒီ command ကို Premium Owner account မှသာ အသုံးပြုနိုင်ပါတယ်။');
+    await ctx.reply('ဒီ command ကို VIP Owner account မှသာ အသုံးပြုနိုင်ပါတယ်။');
   }
   return false;
 }
@@ -181,7 +181,7 @@ async function handleSetPremium(ctx) {
   }
 
   await ctx.reply([
-    '✅ <b>Premium User ထည့်ပြီးပါပြီ</b>',
+    '✅ <b>VIP User ထည့်ပြီးပါပြီ</b>',
     '',
     `👤 Telegram ID: <code>${target.telegramId}</code>`,
     `🆔 Profile ID: <code>${target.profileId || '-'}</code>`,
@@ -208,7 +208,7 @@ async function handleRemovePremium(ctx) {
   }
 
   await revokePremium(target, ctx.from.id);
-  await ctx.reply(`✅ Premium ဖြုတ်ပြီးပါပြီ။\n👤 Telegram ID: <code>${target.telegramId}</code>`, { parse_mode: 'HTML' });
+  await ctx.reply(`✅ VIP ဖြုတ်ပြီးပါပြီ။\n👤 Telegram ID: <code>${target.telegramId}</code>`, { parse_mode: 'HTML' });
 }
 
 async function handlePremiumCheck(ctx) {
@@ -229,12 +229,12 @@ async function handlePremiumCheck(ctx) {
 
   const record = await getActivePremiumByTelegramId(target.telegramId);
   if (!record) {
-    await ctx.reply(`ℹ️ Premium မရှိပါ။\n👤 Telegram ID: <code>${target.telegramId}</code>`, { parse_mode: 'HTML' });
+    await ctx.reply(`ℹ️ VIP မရှိပါ။\n👤 Telegram ID: <code>${target.telegramId}</code>`, { parse_mode: 'HTML' });
     return;
   }
 
   await ctx.reply([
-    '💎 <b>Premium Active</b>',
+    '💎 <b>VIP Active</b>',
     '',
     `👤 Telegram ID: <code>${target.telegramId}</code>`,
     `🆔 Profile ID: <code>${target.profileId || '-'}</code>`,

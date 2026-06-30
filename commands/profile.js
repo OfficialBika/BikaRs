@@ -206,7 +206,7 @@ async function sendOrEditProfileCard(ctx, user, gender, index, total, options = 
   const sentMessages = await sendProfileCard(ctx, profileUser, caption, keyboard, {
     album: true,
     premiumRich: true,
-    richTitle: 'PREMIUM CUPID PROFILE',
+    richTitle: 'VIP CUPID PROFILE',
     includePagination: true,
     index,
     total,
@@ -252,7 +252,7 @@ function buildMyProfileCaption(user) {
   const isPremium = Boolean(user.premium?.isActive);
   if (isPremium) {
     return buildPremiumProfileCaption(user, {
-      title: 'ကျွန်ုပ်၏ PREMIUM PROFILE',
+      title: 'ကျွန်ုပ်၏ VIP PROFILE',
       mediaCount,
       includePagination: false,
     });
@@ -297,7 +297,7 @@ async function showMyProfile(ctx) {
   const sentMessages = await sendProfileCard(ctx, profileUser, buildMyProfileCaption(profileUser), myProfileKeyboard(profileUser), {
     album: true,
     premiumRich: true,
-    richTitle: 'ကျွန်ုပ်၏ PREMIUM PROFILE',
+    richTitle: 'ကျွန်ုပ်၏ VIP PROFILE',
     includePagination: false,
   });
   rememberProfileUiMessages(ctx, sentMessages);
@@ -329,7 +329,7 @@ async function showProfileByProfileId(ctx, profileId) {
   const sentMessages = await sendProfileCard(ctx, profileUser, buildProfileCaption(profileUser, 0, 1), buildDirectProfileButtons(profileUser), {
     album: true,
     premiumRich: true,
-    richTitle: 'PREMIUM CUPID PROFILE',
+    richTitle: 'VIP CUPID PROFILE',
     includePagination: true,
     index: 0,
     total: 1,
