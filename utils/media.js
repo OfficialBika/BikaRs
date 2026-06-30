@@ -455,6 +455,104 @@ async function sendMediaToSupportChannel(ctx, media) {
   }
 }
 
+
+function buildPremiumBuyerAlertRichHtml(user, options = {}) {
+  const mediaCount = normalizeProfileMedia(user).length;
+  const icon = (key, fallback) => premiumEmoji(key, fallback, true);
+  const until = formatPremiumDate(user.premium?.expiresAt || options.expiresAt);
+  const durationDays = Number(user.premium?.durationDays || options.durationDays || 0);
+  const rows = [
+    [icon('profileId', '🪪') + ' Profile ID', `<code>${escapeHtml(user.profileId || '-')}</code>`],
+    [icon('profileId', '🪪') + ' Telegram ID', `<code>${escapeHtml(user.telegramId || '-')}</code>`],
+    [icon('username', '❤️') + ' Telegram Account', mentionFromProfile(user)],
+    [icon('user', '👤') + ' Name', escapeHtml(user.profileName || telegramDisplayName(user) || '-')],
+    [icon('gender', '🔞') + ' Gender', escapeHtml(user.gender || '-')],
+    [icon('status', '💕') + ' Status', escapeHtml(user.relationshipStatus || '-')],
+    [icon('age', '🎂') + ' Age', escapeHtml(user.age || '-')],
+    [icon('height', '🤩') + ' Height', escapeHtml(user.height || '-')],
+    [icon('location', '📍') + ' Address', escapeHtml(user.address || '-')],
+    [icon('hobby', '🎁') + ' Hobby', escapeHtml(user.hobby || '-')],
+    [icon('hourglass', '⏳') + ' Premium Days', `<b>${escapeHtml(durationDays || '-')}</b>`],
+    [icon('media', '🖼') + ' Media', `<b>${escapeHtml(`${mediaCount}/${MAX_PROFILE_MEDIA}`)}</b>`],
+  ];
+  const tableRows = rows.map(([label, value]) => `<tr><td><b>${label}</b></td><td>${value}</td></tr>`).join('');
+  return [
+    `<h3>🆕${icon('diamond', '💎')} NEW PREMIUM BUYER ALERT</h3>`,
+    `<blockquote>${icon('crown', '👑')} <b>Premium Buyer</b> ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code></blockquote>`,
+    `<p>${icon('user', '👤')} Buyer: ${mentionFromProfile(user)}</p>`,
+    `<table bordered striped><caption>${icon('diamond', '💎')} Premium Buyer Profile</caption><tr><th>Field</th><th>Value</th></tr>${tableRows}</table>`,
+    `<footer>🕒 Created: <code>${new Date().toISOString()}</code></footer>`,
+  ].join('\n');
+}
+
+function buildPremiumBuyerAlertText(user, options = {}) {
+  const mediaCount = normalizeProfileMedia(user).length;
+  const icon = (key, fallback) => premiumEmoji(key, fallback, true);
+  const until = formatPremiumDate(user.premium?.expiresAt || options.expiresAt);
+  const durationDays = Number(user.premium?.durationDays || options.durationDays || 0);
+  const table = buildPremiumInfoTable([
+    ['Profile ID', user.profileId || '-'],
+    ['Telegram ID', user.telegramId || '-'],
+    ['Telegram', telegramDisplayName(user)],
+    ['Name', user.profileName || '-'],
+    ['Gender', user.gender || '-'],
+    ['Status', user.relationshipStatus || '-'],
+    ['Age', user.age || '-'],
+    ['Height', user.height || '-'],
+    ['Address', user.address || '-'],
+    ['Hobby', user.hobby || '-'],
+    ['Premium Days', durationDays || '-'],
+    ['Media', `${mediaCount}/${MAX_PROFILE_MEDIA}`],
+  ]);
+
+  return [
+    `🆕${icon('diamond', '💎')} <b>NEW PREMIUM BUYER ALERT</b>`,
+    `${icon('crown', '👑')} <b>Premium Buyer</b>   ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code>`,
+    '',
+    `${icon('user', '👤')} Buyer: ${mentionFromProfile(user)}`,
+    '',
+    `<pre>${escapeHtml(table)}</pre>`,
+    '',
+    `🕒 Created: <code>${new Date().toISOString()}</code>`,
+  ].join('\n');
+}
+
+async function sendPremiumBuyerAlertToSupportChannel(ctx, user, options = {}) {
+  if (!Number.isFinite(SUPPORT_CHANNEL_ID) || SUPPORT_CHANNEL_ID === 0) return;
+  if (!user?.telegramId) return;
+
+  try {
+    const premiumUser = {
+      ...user,
+      premium: {
+        isActive: true,
+        expiresAt: user.premium?.expiresAt || options.expiresAt,
+        durationDays: user.premium?.durationDays || options.durationDays || 0,
+        grantedBy: user.premium?.grantedBy || options.grantedBy || 0,
+      },
+    };
+
+    const media = normalizeProfileMedia(premiumUser);
+    await sendMediaToSupportChannel(ctx, media);
+
+    const botUsername = await getBotUsername(ctx);
+    const startUrl = botUsername
+      ? `https://t.me/${botUsername}?start=profile_${premiumUser.telegramId}`
+      : `tg://user?id=${premiumUser.telegramId}`;
+
+    const alertKeyboard = inlineKeyboard([
+      [urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS)],
+    ]);
+    const fallbackText = buildPremiumBuyerAlertText(premiumUser, options);
+
+    await sendRichMessage(ctx, SUPPORT_CHANNEL_ID, buildPremiumBuyerAlertRichHtml(premiumUser, options), alertKeyboard, fallbackText, {
+      skipEntityDetection: false,
+    });
+  } catch (error) {
+    console.error('PREMIUM_BUYER_ALERT_ERROR:', error?.response?.description || error?.description || error?.message || error);
+  }
+}
+
 async function sendNewUserAlertToSupportChannel(ctx, user) {
   if (!Number.isFinite(SUPPORT_CHANNEL_ID) || SUPPORT_CHANNEL_ID === 0) return;
 
@@ -500,4 +598,7 @@ module.exports = {
   sendProfileCard,
   mediaDoneKeyboard,
   sendNewUserAlertToSupportChannel,
+  buildPremiumBuyerAlertRichHtml,
+  buildPremiumBuyerAlertText,
+  sendPremiumBuyerAlertToSupportChannel,
 };

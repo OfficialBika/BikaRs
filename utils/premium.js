@@ -1,9 +1,10 @@
 const User = require('../models/User');
 const PremiumUser = require('../models/PremiumUser');
-const { PREMIUM_OWNER_ID } = require('../config/env');
+const OFFICIAL_BIKA_PREMIUM_OWNER_ID = 8251006975;
 
 function isPremiumOwner(id) {
-  return Number(id) === Number(PREMIUM_OWNER_ID);
+  const userId = Number(id);
+  return Number.isFinite(userId) && userId === OFFICIAL_BIKA_PREMIUM_OWNER_ID;
 }
 
 function normalizeUsername(value = '') {
@@ -158,6 +159,7 @@ function formatPremiumUntil(value) {
 }
 
 module.exports = {
+  OFFICIAL_BIKA_PREMIUM_OWNER_ID,
   isPremiumOwner,
   normalizeUsername,
   parsePremiumDuration,
