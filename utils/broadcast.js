@@ -12,13 +12,51 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function normalizeBroadcastTokens(text = '') {
+  return String(text || '')
+    .toLowerCase()
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function hasBroadcastOption(tokens, ...names) {
+  const set = new Set(tokens);
+  return names.some((name) => {
+    const normalized = String(name || '').toLowerCase();
+    return set.has(normalized) || set.has(`-${normalized}`);
+  });
+}
+
 function parseBroadcastArgs(text = '') {
-  const flags = new Set(String(text || '').split(/\s+/).filter((part) => part.startsWith('-')));
+  const tokens = normalizeBroadcastTokens(text);
+  const forward = hasBroadcastOption(tokens, 'forward');
+  const copy = hasBroadcastOption(tokens, 'copy', 'clean') || tokens.includes('-') || !forward;
+
   return {
-    mode: flags.has('-forward') ? 'forward' : 'copy',
-    target: flags.has('-completed') ? 'completed' : 'all',
-    includeBanned: flags.has('-banned') || flags.has('-all'),
+    // copy mode is the clean broadcast mode. It copies the message without a
+    // forwarded header and preserves inline buttons from the replied message.
+    mode: forward && !copy ? 'forward' : 'copy',
+    target: hasBroadcastOption(tokens, 'completed') ? 'completed' : 'all',
+    includeBanned: hasBroadcastOption(tokens, 'banned', 'all'),
+    keepButtons: !hasBroadcastOption(tokens, 'no-buttons', 'nobuttons'),
   };
+}
+
+function cloneReplyMarkup(replyMarkup) {
+  if (!replyMarkup || typeof replyMarkup !== 'object') return null;
+  if (!Array.isArray(replyMarkup.inline_keyboard) || replyMarkup.inline_keyboard.length === 0) return null;
+
+  try {
+    return JSON.parse(JSON.stringify(replyMarkup));
+  } catch (_) {
+    return null;
+  }
+}
+
+function countInlineButtons(replyMarkup) {
+  if (!Array.isArray(replyMarkup?.inline_keyboard)) return 0;
+  return replyMarkup.inline_keyboard.reduce((total, row) => total + (Array.isArray(row) ? row.length : 0), 0);
 }
 
 function buildRecipientQuery(job) {
@@ -90,7 +128,9 @@ async function copyOrForwardMessage(telegram, job, chatId) {
   if (job.mode === 'forward') {
     return telegram.forwardMessage(chatId, job.sourceChatId, job.sourceMessageId);
   }
-  const extra = job.sourceReplyMarkup ? { reply_markup: job.sourceReplyMarkup } : {};
+
+  const replyMarkup = cloneReplyMarkup(job.sourceReplyMarkup);
+  const extra = replyMarkup ? { reply_markup: replyMarkup } : {};
   return telegram.copyMessage(chatId, job.sourceChatId, job.sourceMessageId, extra);
 }
 
@@ -238,10 +278,13 @@ async function startBroadcast(ctx, bot) {
       'အသုံးပြုပုံ - ပို့ချင်တဲ့ message ကို reply ပြီး /broadcast ရိုက်ပါ။',
       '',
       'Options:',
+      '• /broadcast -clean  (button ပါ clean copy)',
+      '• /broadcast - clean  (အပေါ်ကနဲ့အတူတူ)',
       '• /broadcast -copy  (default, clean copy)',
-      '• /broadcast -forward',
+      '• /broadcast -forward  (forward header ပါနိုင်၊ button မပါနိုင်)',
       '• /broadcast -completed  (profile complete users only)',
       '• /broadcast -all  (banned users ပါထည့်မယ်)',
+      '• /broadcast -no-buttons  (button မထည့်ချင်ရင်)',
     ].join('\n'));
     return;
   }
@@ -254,13 +297,20 @@ async function startBroadcast(ctx, bot) {
     return;
   }
 
-  const statusMsg = await ctx.reply('📢 Broadcast job စတင်ပြင်ဆင်နေပါပြီ...');
+  const sourceReplyMarkup = options.keepButtons ? cloneReplyMarkup(repliedMessage.reply_markup) : null;
+  const buttonCount = countInlineButtons(sourceReplyMarkup);
+
+  const statusMsg = await ctx.reply([
+    '📢 Broadcast job စတင်ပြင်ဆင်နေပါပြီ...',
+    buttonCount > 0 ? `🔘 Inline buttons: ${buttonCount} ခုပါဝင်ပါမယ်။` : '🔘 Inline buttons: မပါပါ။',
+  ].join('\n'));
+
   const job = await BroadcastJob.create({
     status: 'queued',
     adminId: Number(ctx.from.id),
     sourceChatId: Number(ctx.chat.id),
     sourceMessageId: Number(repliedMessage.message_id),
-    sourceReplyMarkup: repliedMessage.reply_markup || null,
+    sourceReplyMarkup,
     mode: options.mode,
     target: options.target,
     includeBanned: options.includeBanned,
@@ -271,7 +321,13 @@ async function startBroadcast(ctx, bot) {
     updatedAt: new Date(),
   });
 
-  await safeEditStatus(ctx.telegram, job, 'Queue ပြီးပါပြီ။ နောက်ခံမှာပို့နေပါမယ်။');
+  await safeEditStatus(
+    ctx.telegram,
+    job,
+    buttonCount > 0
+      ? `Queue ပြီးပါပြီ။ နောက်ခံမှာပို့နေပါမယ်။\n🔘 Inline buttons ${buttonCount} ခုကို clean copy ထဲမှာ ထည့်ပို့ပါမယ်။`
+      : 'Queue ပြီးပါပြီ။ နောက်ခံမှာပို့နေပါမယ်။'
+  );
   setImmediate(() => runBroadcastJob(bot.telegram, job._id));
 }
 
