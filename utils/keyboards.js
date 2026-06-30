@@ -162,10 +162,10 @@ function buildPremiumProfileCaption(user, options = {}) {
   const mediaCount = Number.isFinite(Number(options.mediaCount))
     ? Number(options.mediaCount)
     : (Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0));
-  const title = options.title || 'PREMIUM CUPID PROFILE';
+  const title = options.title || 'VIP CUPID PROFILE';
   const until = formatPremiumDate(user.premium?.expiresAt);
   const table = buildPremiumInfoTable([
-    ['Status', 'Premium User'],
+    ['Status', 'VIP User'],
     ['Until', until],
     ['Profile ID', user.profileId || '-'],
     ['Name', user.profileName || '-'],
@@ -181,7 +181,7 @@ function buildPremiumProfileCaption(user, options = {}) {
 
   const lines = [
     `${premiumEmoji('diamond', '💎', true)} <b>${escapeHtml(title)}</b>`,
-    `${premiumEmoji('crown', '👑', true)} <b>Premium User</b>   ${premiumEmoji('hourglass', '⏳', true)} <code>${escapeHtml(until)}</code>`,
+    `${premiumEmoji('crown', '👑', true)} <b>VIP User</b>   ${premiumEmoji('hourglass', '⏳', true)} <code>${escapeHtml(until)}</code>`,
     `${premiumEmoji('user', '👤', true)} <b>Telegram Account:</b> ${telegramMentionHtml(user)}`,
     '',
     `<pre>${escapeHtml(table)}</pre>`,
@@ -215,15 +215,15 @@ function buildPremiumProfileRichHtml(user, options = {}) {
   const mediaCount = Number.isFinite(Number(options.mediaCount))
     ? Number(options.mediaCount)
     : (Array.isArray(user.media) && user.media.length ? user.media.length : (user.photoFileId ? 1 : 0));
-  const title = options.title || 'PREMIUM CUPID PROFILE';
+  const title = options.title || 'VIP CUPID PROFILE';
   const until = formatPremiumDate(user.premium?.expiresAt);
   const includePagination = Boolean(options.includePagination);
   const index = Number(options.index || 0);
   const total = Number(options.total || 0);
 
   const rows = [
-    [premiumEmoji('crown', '👑', true) + ' Status', '<b>Premium User</b>'],
-    [premiumEmoji('hourglass', '⏳', true) + ' Premium Until', `<code>${richCell(until)}</code>`],
+    [premiumEmoji('crown', '👑', true) + ' Status', '<b>VIP User</b>'],
+    [premiumEmoji('hourglass', '⏳', true) + ' VIP Until', `<code>${richCell(until)}</code>`],
     [premiumEmoji('profileId', '🪪', true) + ' Profile ID', `<code>${richCell(user.profileId || '-')}</code>`],
     [premiumEmoji('user', '👤', true) + ' Name', richCell(user.profileName || '-')],
     [premiumEmoji('gender', '🔞', true) + ' Gender', richCell(genderLabel(user.gender))],
@@ -243,8 +243,8 @@ function buildPremiumProfileRichHtml(user, options = {}) {
 
   return [
     `<h3>${premiumEmoji('diamond', '💎', true)} ${richCell(title)}</h3>`,
-    `<blockquote>${premiumEmoji('crown', '👑', true)} <b>Premium User</b> ${premiumEmoji('hourglass', '⏳', true)} <code>${richCell(until)}</code></blockquote>`,
-    `<table bordered striped><caption>${premiumEmoji('diamond', '💎', true)} Premium Profile Info</caption><tr><th>Field</th><th>Value</th></tr>${tableRows}</table>`,
+    `<blockquote>${premiumEmoji('crown', '👑', true)} <b>VIP User</b> ${premiumEmoji('hourglass', '⏳', true)} <code>${richCell(until)}</code></blockquote>`,
+    `<table bordered striped><caption>${premiumEmoji('diamond', '💎', true)} VIP Profile Info</caption><tr><th>Field</th><th>Value</th></tr>${tableRows}</table>`,
     `<p>👍 <b>${richCell(user.reactions?.like || 0)}</b> &nbsp; ❤ <b>${richCell(user.reactions?.love || 0)}</b> &nbsp; 🤣 <b>${richCell(user.reactions?.laugh || 0)}</b></p>`,
     pageLine,
   ].filter(Boolean).join('\n');
@@ -254,7 +254,7 @@ function buildProfileCaption(user, index, total) {
   const isPremium = Boolean(user.premium?.isActive);
   if (isPremium) {
     return buildPremiumProfileCaption(user, {
-      title: 'PREMIUM CUPID PROFILE',
+      title: 'VIP CUPID PROFILE',
       index,
       total,
       includePagination: true,

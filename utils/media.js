@@ -216,7 +216,7 @@ async function sendPremiumRichProfileCard(ctx, user, fallbackCaption, keyboard, 
   }
 
   const html = buildPremiumProfileRichHtml(user, {
-    title: options.richTitle || 'PREMIUM CUPID PROFILE',
+    title: options.richTitle || 'VIP CUPID PROFILE',
     mediaCount: media.length,
     includePagination: Boolean(options.includePagination),
     index: options.index,
@@ -362,10 +362,10 @@ function buildNewUserAlertRichHtml(user) {
   ];
   const tableRows = rows.map(([label, value]) => `<tr><td><b>${label}</b></td><td>${value}</td></tr>`).join('');
   return [
-    `<h3>🆕${icon('diamond', '💎')} NEW PREMIUM USER ALERT</h3>`,
-    `<blockquote>${icon('crown', '👑')} <b>Premium User</b> ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code></blockquote>`,
+    `<h3>🆕${icon('diamond', '💎')} NEW VIP USER ALERT</h3>`,
+    `<blockquote>${icon('crown', '👑')} <b>VIP User</b> ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code></blockquote>`,
     `<p>${icon('user', '👤')} User: ${mentionFromProfile(user)}</p>`,
-    `<table bordered striped><caption>${icon('diamond', '💎')} Premium User Info</caption><tr><th>Field</th><th>Value</th></tr>${tableRows}</table>`,
+    `<table bordered striped><caption>${icon('diamond', '💎')} VIP User Info</caption><tr><th>Field</th><th>Value</th></tr>${tableRows}</table>`,
     `<footer>🕒 Created: <code>${new Date().toISOString()}</code></footer>`,
   ].join('\n');
 }
@@ -392,8 +392,8 @@ function buildNewUserAlertText(user) {
     ]);
 
     return [
-      `🆕${icon('diamond', '💎')} <b>NEW PREMIUM USER ALERT</b>`,
-      `${icon('crown', '👑')} <b>Premium User</b>   ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code>`,
+      `🆕${icon('diamond', '💎')} <b>NEW VIP USER ALERT</b>`,
+      `${icon('crown', '👑')} <b>VIP User</b>   ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code>`,
       '',
       `${icon('user', '👤')} User: ${mentionFromProfile(user)}`,
       '',
@@ -472,15 +472,15 @@ function buildPremiumBuyerAlertRichHtml(user, options = {}) {
     [icon('height', '🤩') + ' Height', escapeHtml(user.height || '-')],
     [icon('location', '📍') + ' Address', escapeHtml(user.address || '-')],
     [icon('hobby', '🎁') + ' Hobby', escapeHtml(user.hobby || '-')],
-    [icon('hourglass', '⏳') + ' Premium Days', `<b>${escapeHtml(durationDays || '-')}</b>`],
+    [icon('hourglass', '⏳') + ' VIP Days', `<b>${escapeHtml(durationDays || '-')}</b>`],
     [icon('media', '🖼') + ' Media', `<b>${escapeHtml(`${mediaCount}/${MAX_PROFILE_MEDIA}`)}</b>`],
   ];
   const tableRows = rows.map(([label, value]) => `<tr><td><b>${label}</b></td><td>${value}</td></tr>`).join('');
   return [
-    `<h3>🆕${icon('diamond', '💎')} NEW PREMIUM BUYER ALERT</h3>`,
-    `<blockquote>${icon('crown', '👑')} <b>Premium Buyer</b> ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code></blockquote>`,
+    `<h3>🆕${icon('diamond', '💎')} NEW VIP BUYER ALERT</h3>`,
+    `<blockquote>${icon('crown', '👑')} <b>VIP Buyer</b> ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code></blockquote>`,
     `<p>${icon('user', '👤')} Buyer: ${mentionFromProfile(user)}</p>`,
-    `<table bordered striped><caption>${icon('diamond', '💎')} Premium Buyer Profile</caption><tr><th>Field</th><th>Value</th></tr>${tableRows}</table>`,
+    `<table bordered striped><caption>${icon('diamond', '💎')} VIP Buyer Profile</caption><tr><th>Field</th><th>Value</th></tr>${tableRows}</table>`,
     `<footer>🕒 Created: <code>${new Date().toISOString()}</code></footer>`,
   ].join('\n');
 }
@@ -501,13 +501,13 @@ function buildPremiumBuyerAlertText(user, options = {}) {
     ['Height', user.height || '-'],
     ['Address', user.address || '-'],
     ['Hobby', user.hobby || '-'],
-    ['Premium Days', durationDays || '-'],
+    ['VIP Days', durationDays || '-'],
     ['Media', `${mediaCount}/${MAX_PROFILE_MEDIA}`],
   ]);
 
   return [
-    `🆕${icon('diamond', '💎')} <b>NEW PREMIUM BUYER ALERT</b>`,
-    `${icon('crown', '👑')} <b>Premium Buyer</b>   ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code>`,
+    `🆕${icon('diamond', '💎')} <b>NEW VIP BUYER ALERT</b>`,
+    `${icon('crown', '👑')} <b>VIP Buyer</b>   ${icon('hourglass', '⏳')} <code>${escapeHtml(until)}</code>`,
     '',
     `${icon('user', '👤')} Buyer: ${mentionFromProfile(user)}`,
     '',
