@@ -13,7 +13,10 @@ const {
   getActivePremiumByTelegramId,
   formatPremiumUntil,
 } = require('../utils/premium');
-const { sendProfileCard } = require('../utils/media');
+const {
+  sendProfileCard,
+  sendPremiumBuyerAlertToSupportChannel,
+} = require('../utils/media');
 const {
   startBroadcast,
   stopBroadcast,
@@ -122,14 +125,16 @@ function premiumUsage() {
   ].join('\n');
 }
 
-async function requirePremiumOwner(ctx) {
+async function requirePremiumOwner(ctx, options = {}) {
   if (isPremiumOwner(ctx.from?.id)) return true;
-  await ctx.reply('ဒီ command ကို Premium Owner account မှသာ အသုံးပြုနိုင်ပါတယ်။');
+  if (!options.silent) {
+    await ctx.reply('ဒီ command ကို Premium Owner account မှသာ အသုံးပြုနိုင်ပါတယ်။');
+  }
   return false;
 }
 
 async function handleSetPremium(ctx) {
-  if (!(await requirePremiumOwner(ctx))) return;
+  if (!(await requirePremiumOwner(ctx, { silent: true }))) return;
 
   const parts = String(ctx.message?.text || '').trim().split(/\s+/);
   const targetArg = parts[1];
@@ -153,6 +158,28 @@ async function handleSetPremium(ctx) {
   }
 
   const record = await grantPremium(target, days, ctx.from.id);
+
+  const targetUser = target.user || await User.findOne({ telegramId: Number(target.telegramId) }).lean();
+  if (targetUser) {
+    const premiumTargetUser = {
+      ...targetUser,
+      telegramId: Number(target.telegramId),
+      username: target.username || targetUser.username || '',
+      profileId: target.profileId || targetUser.profileId || 0,
+      premium: {
+        isActive: true,
+        expiresAt: record.expiresAt,
+        durationDays: record.durationDays || days,
+        grantedBy: record.grantedBy || ctx.from.id,
+      },
+    };
+    await sendPremiumBuyerAlertToSupportChannel(ctx, premiumTargetUser, {
+      expiresAt: record.expiresAt,
+      durationDays: record.durationDays || days,
+      grantedBy: ctx.from.id,
+    });
+  }
+
   await ctx.reply([
     '✅ <b>Premium User ထည့်ပြီးပါပြီ</b>',
     '',
@@ -165,7 +192,7 @@ async function handleSetPremium(ctx) {
 }
 
 async function handleRemovePremium(ctx) {
-  if (!(await requirePremiumOwner(ctx))) return;
+  if (!(await requirePremiumOwner(ctx, { silent: true }))) return;
 
   const parts = String(ctx.message?.text || '').trim().split(/\s+/);
   const targetArg = parts[1];
@@ -185,7 +212,7 @@ async function handleRemovePremium(ctx) {
 }
 
 async function handlePremiumCheck(ctx) {
-  if (!(await requirePremiumOwner(ctx))) return;
+  if (!(await requirePremiumOwner(ctx, { silent: true }))) return;
 
   const parts = String(ctx.message?.text || '').trim().split(/\s+/);
   const targetArg = parts[1];
