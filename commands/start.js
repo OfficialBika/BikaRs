@@ -64,7 +64,7 @@ function premiumInfoText() {
   return [
     `${startEmoji('crown')} <b>VIP User အကြောင်း</b>`,
     '',
-    'Bot မှာ <b>VIP User</b> အဖြစ် အသုံးပြုချင်သူများက အောက်က VIP အကြောင်း button ကိုနှိပ်ပြီး အချက်အလက်များကို ဖတ်ရှုနိုင်ပါတယ်။',
+    'Bot မှာ <b>VIP User</b> အဖြစ် အသုံးပြုချင်သူများက အောက်က VIP အချက်အလက်များကို ဖတ်ရှုနိုင်ပါတယ်။',
     '',
     `${startEmoji('premiumMark')} <b>VIP User ရရှိမည့် အကျိုးခံစားခွင့်များ</b>`,
     '• Boy list / Girl list ရှာတဲ့နေရာနဲ့ ကျပန်း profile ရှာတဲ့နေရာမှာ ရှေ့ဆုံးကပြပေးပါတယ်။',
@@ -74,8 +74,9 @@ function premiumInfoText() {
     '• Profile information တွေကို normal user ထက်ပိုပြီး VIP look နဲ့ဖော်ပြပါမယ်။',
     '• နောက်ထပ် VIP feature အသစ်တွေကို ဦးစားပေးအသုံးပြုနိုင်ပါမယ်။',
     '',
-    `${startEmoji('gift')} <b>VIP Price 1လ</b> - <code>1500 ကျပ်</code>`,
-    `${startEmoji('heart')} <b>ဝယ်ယူရန်</b> - <a href="https://t.me/Official_Bika">@Official_Bika</a>`,
+    `${startEmoji('premiumMark')} <b>VIP Price 1လ</b> - <code>1500 ကျပ်</code>`,
+    `${startEmoji('gift')} <b>Telegram Premium 1လ</b> - <code>21000 ကျပ်</code>`,
+    `${startEmoji('heart')} <b>ဝယ်ယူရန်</b> - <a href="https://t.me/Official_Bika">Official Bika</a>`,
   ].join('\n');
 }
 
