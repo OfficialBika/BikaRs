@@ -19,16 +19,131 @@ const {
 
 let cachedBotUsername = '';
 
+function getTelegramErrorDescription(error) {
+  return String(
+    error?.response?.description
+    || error?.description
+    || error?.message
+    || ''
+  );
+}
+
+function isPrivacyRestrictedError(error) {
+  const description = getTelegramErrorDescription(error);
+  return description.includes('BUTTON_USER_PRIVACY_RESTRICTED')
+    || description.includes('USER_PRIVACY_RESTRICTED');
+}
+
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object || {}, key);
+}
+
+function stripRestrictedUserLinks(text = '') {
+  if (text === null || text === undefined) return text;
+
+  return String(text)
+    .replace(
+      /<a\b([^>]*?)href\s*=\s*(["'])tg:\/\/user\?id=\d+\2([^>]*)>([\s\S]*?)<\/a>/gi,
+      '$4'
+    )
+    .replace(
+      /<a\b([^>]*?)href\s*=\s*tg:\/\/user\?id=\d+([^>]*)>([\s\S]*?)<\/a>/gi,
+      '$3'
+    );
+}
+
+function sanitizeInlineKeyboardButton(button = {}) {
+  if (!button || typeof button !== 'object') return null;
+
+  const url = typeof button.url === 'string' ? button.url.trim() : '';
+  if (/^tg:\/\/user\?id=/i.test(url)) return null;
+  if (hasOwn(button, 'user_id')) return null;
+
+  const safeButton = { ...button };
+  if (typeof safeButton.text === 'string') {
+    safeButton.text = stripRestrictedUserLinks(safeButton.text);
+  }
+
+  return safeButton;
+}
+
+function sanitizeReplyMarkup(replyMarkup) {
+  if (!replyMarkup || typeof replyMarkup !== 'object') return undefined;
+
+  const safeMarkup = { ...replyMarkup };
+  if (Array.isArray(replyMarkup.inline_keyboard)) {
+    const inlineKeyboardRows = replyMarkup.inline_keyboard
+      .map((row) => (Array.isArray(row) ? row : []))
+      .map((row) => row.map(sanitizeInlineKeyboardButton).filter(Boolean))
+      .filter((row) => row.length > 0);
+
+    if (inlineKeyboardRows.length === 0) return undefined;
+    safeMarkup.inline_keyboard = inlineKeyboardRows;
+  }
+
+  return safeMarkup;
+}
+
+function buildTelegramExtra(extra = {}) {
+  const safeExtra = { ...(extra || {}) };
+
+  if (hasOwn(safeExtra, 'caption')) {
+    safeExtra.caption = stripRestrictedUserLinks(safeExtra.caption || '');
+  }
+
+  if (hasOwn(safeExtra, 'text')) {
+    safeExtra.text = stripRestrictedUserLinks(safeExtra.text || '');
+  }
+
+  if (safeExtra.reply_markup) {
+    const safeReplyMarkup = sanitizeReplyMarkup(safeExtra.reply_markup);
+    if (safeReplyMarkup) safeExtra.reply_markup = safeReplyMarkup;
+    else delete safeExtra.reply_markup;
+  }
+
+  return safeExtra;
+}
+
+function keyboardReplyMarkup(keyboard) {
+  return sanitizeReplyMarkup(keyboard?.reply_markup);
+}
+
+async function copyMessageSafe(ctx, chatId, fromChatId, messageId, extra = {}) {
+  const safeExtra = buildTelegramExtra(extra);
+
+  try {
+    return await ctx.telegram.copyMessage(chatId, fromChatId, messageId, safeExtra);
+  } catch (error) {
+    if (!isPrivacyRestrictedError(error)) throw error;
+
+    const retryExtra = buildTelegramExtra(extra);
+
+    // If the original copied message already contains a restricted tg://user?id
+    // mention in its caption/entities, replacing the caption removes the bad entity.
+    if (!hasOwn(extra, 'caption')) {
+      retryExtra.caption = '';
+      retryExtra.parse_mode = 'HTML';
+    }
+
+    return ctx.telegram.copyMessage(chatId, fromChatId, messageId, retryExtra);
+  }
+}
+
+
 function getDisplayName(from = {}) {
   const fullName = [from.first_name, from.last_name].filter(Boolean).join(' ').trim();
   return fullName || from.username || `User ${from.id || ''}`.trim() || 'Unknown User';
 }
 
 function mentionFromTelegramUser(from = {}) {
-  const id = Number(from.id);
   const name = escapeHtml(getDisplayName(from));
-  if (!Number.isFinite(id) || id <= 0) return name;
-  return `<a href="tg://user?id=${id}">${name}</a>`;
+  const username = String(from.username || '').replace(/^@/, '').trim();
+
+  if (username) {
+    return `<a href="https://t.me/${escapeHtml(username)}">${name}</a>`;
+  }
+
+  return name;
 }
 
 function mentionFromProfile(user = {}) {
@@ -148,7 +263,7 @@ async function sendRichMessage(ctx, chatId, html, keyboard, fallbackText, extra 
     ...apiExtra
   } = extra || {};
 
-  const richMessage = { html };
+  const richMessage = { html: stripRestrictedUserLinks(html) };
 
   // Important: keep entity detection enabled by default so <tg-emoji> custom
   // emoji tags inside channel rich messages are preserved. Setting this to true
@@ -161,15 +276,15 @@ async function sendRichMessage(ctx, chatId, html, keyboard, fallbackText, extra 
     return await ctx.telegram.callApi('sendRichMessage', {
       chat_id: chatId,
       rich_message: richMessage,
-      reply_markup: keyboard?.reply_markup,
+      reply_markup: keyboardReplyMarkup(keyboard),
       ...apiExtra,
     });
   } catch (error) {
     console.error('SEND_RICH_MESSAGE_FALLBACK:', error?.response?.description || error?.description || error?.message || error);
-    return ctx.telegram.sendMessage(chatId, fallbackText, {
+    return ctx.telegram.sendMessage(chatId, stripRestrictedUserLinks(fallbackText), {
       parse_mode: fallbackParseMode,
       disable_web_page_preview: true,
-      reply_markup: keyboard?.reply_markup,
+      reply_markup: keyboardReplyMarkup(keyboard),
     });
   }
 }
@@ -180,7 +295,7 @@ async function sendMediaOnly(ctx, media) {
     return await ctx.replyWithPhoto(media.fileId);
   } catch (error) {
     if (media.backupChatId && media.backupMessageId) {
-      return ctx.telegram.copyMessage(ctx.chat.id, media.backupChatId, media.backupMessageId);
+      return copyMessageSafe(ctx, ctx.chat.id, media.backupChatId, media.backupMessageId);
     }
     throw error;
   }
@@ -230,9 +345,9 @@ async function sendPremiumRichProfileCard(ctx, user, fallbackCaption, keyboard, 
 
 async function sendSingleMedia(ctx, media, caption, keyboard) {
   const payload = {
-    caption,
+    caption: stripRestrictedUserLinks(caption),
     parse_mode: 'HTML',
-    reply_markup: keyboard?.reply_markup,
+    reply_markup: keyboardReplyMarkup(keyboard),
   };
 
   try {
@@ -240,7 +355,7 @@ async function sendSingleMedia(ctx, media, caption, keyboard) {
     return await ctx.replyWithPhoto(media.fileId, payload);
   } catch (error) {
     if (media.backupChatId && media.backupMessageId) {
-      return ctx.telegram.copyMessage(ctx.chat.id, media.backupChatId, media.backupMessageId, payload);
+      return copyMessageSafe(ctx, ctx.chat.id, media.backupChatId, media.backupMessageId, payload);
     }
     throw error;
   }
@@ -250,13 +365,13 @@ async function editOrSendSingleMedia(ctx, media, caption, keyboard) {
   const mediaPayload = {
     type: media.type,
     media: media.fileId,
-    caption,
+    caption: stripRestrictedUserLinks(caption),
     parse_mode: 'HTML',
   };
 
   try {
     if (ctx.updateType === 'callback_query') {
-      await ctx.editMessageMedia(mediaPayload, { reply_markup: keyboard?.reply_markup });
+      await ctx.editMessageMedia(mediaPayload, { reply_markup: keyboardReplyMarkup(keyboard) });
       return ctx.callbackQuery?.message || null;
     }
   } catch (_) {
@@ -278,11 +393,11 @@ async function sendProfileCard(ctx, user, caption, keyboard, options = {}) {
   if (media.length === 0) {
     if (ctx.updateType === 'callback_query') {
       try {
-        await ctx.editMessageText(caption, { parse_mode: 'HTML', reply_markup: keyboard?.reply_markup });
+        await ctx.editMessageText(stripRestrictedUserLinks(caption), { parse_mode: 'HTML', reply_markup: keyboardReplyMarkup(keyboard) });
         return [ctx.callbackQuery?.message].filter(Boolean);
       } catch (_) {}
     }
-    const msg = await ctx.reply(caption, { parse_mode: 'HTML', reply_markup: keyboard?.reply_markup });
+    const msg = await ctx.reply(stripRestrictedUserLinks(caption), { parse_mode: 'HTML', reply_markup: keyboardReplyMarkup(keyboard) });
     return [msg].filter(Boolean);
   }
 
@@ -311,7 +426,7 @@ async function sendProfileCard(ctx, user, caption, keyboard, options = {}) {
       } catch (error) {
         if (item.backupChatId && item.backupMessageId) {
           try {
-            const copied = await ctx.telegram.copyMessage(ctx.chat.id, item.backupChatId, item.backupMessageId);
+            const copied = await copyMessageSafe(ctx, ctx.chat.id, item.backupChatId, item.backupMessageId);
             sentMessages.push(copied);
           } catch (_) {}
         }
@@ -319,7 +434,7 @@ async function sendProfileCard(ctx, user, caption, keyboard, options = {}) {
     }
   }
 
-  const textMessage = await ctx.reply(caption, { parse_mode: 'HTML', reply_markup: keyboard?.reply_markup });
+  const textMessage = await ctx.reply(stripRestrictedUserLinks(caption), { parse_mode: 'HTML', reply_markup: keyboardReplyMarkup(keyboard) });
   sentMessages.push(textMessage);
   return sentMessages.filter(Boolean);
 }
@@ -446,7 +561,7 @@ async function sendMediaToSupportChannel(ctx, media) {
     for (const item of media) {
       if (item.backupChatId && item.backupMessageId) {
         try {
-          const copied = await ctx.telegram.copyMessage(SUPPORT_CHANNEL_ID, item.backupChatId, item.backupMessageId);
+          const copied = await copyMessageSafe(ctx, SUPPORT_CHANNEL_ID, item.backupChatId, item.backupMessageId);
           sent.push(copied);
         } catch (_) {}
       }
@@ -538,11 +653,11 @@ async function sendPremiumBuyerAlertToSupportChannel(ctx, user, options = {}) {
     const botUsername = await getBotUsername(ctx);
     const startUrl = botUsername
       ? `https://t.me/${botUsername}?start=profile_${premiumUser.telegramId}`
-      : `tg://user?id=${premiumUser.telegramId}`;
+      : '';
 
-    const alertKeyboard = inlineKeyboard([
+    const alertKeyboard = startUrl ? inlineKeyboard([
       [urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS)],
-    ]);
+    ]) : null;
     const fallbackText = buildPremiumBuyerAlertText(premiumUser, options);
 
     await sendRichMessage(ctx, SUPPORT_CHANNEL_ID, buildPremiumBuyerAlertRichHtml(premiumUser, options), alertKeyboard, fallbackText, {
@@ -563,11 +678,11 @@ async function sendNewUserAlertToSupportChannel(ctx, user) {
     const botUsername = await getBotUsername(ctx);
     const startUrl = botUsername
       ? `https://t.me/${botUsername}?start=profile_${user.telegramId}`
-      : `tg://user?id=${user.telegramId}`;
+      : '';
 
-    const alertKeyboard = inlineKeyboard([
+    const alertKeyboard = startUrl ? inlineKeyboard([
       [urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS)],
-    ]);
+    ]) : null;
     const fallbackText = buildNewUserAlertText(user);
 
     if (isPremiumUser(user)) {
@@ -577,10 +692,10 @@ async function sendNewUserAlertToSupportChannel(ctx, user) {
       return;
     }
 
-    await ctx.telegram.sendMessage(SUPPORT_CHANNEL_ID, fallbackText, {
+    await ctx.telegram.sendMessage(SUPPORT_CHANNEL_ID, stripRestrictedUserLinks(fallbackText), {
       parse_mode: 'HTML',
       disable_web_page_preview: true,
-      reply_markup: alertKeyboard.reply_markup,
+      reply_markup: keyboardReplyMarkup(alertKeyboard),
     });
   } catch (error) {
     console.error('NEW_USER_ALERT_ERROR:', error);
