@@ -161,6 +161,62 @@ function isPremiumActiveUser(user = {}) {
   return Boolean(user?.premium?.isActive);
 }
 
+function cleanTelegramUsername(username = '') {
+  return String(username || '')
+    .replace(/^@/, '')
+    .trim();
+}
+
+function getProfileTelegramUsername(user = {}) {
+  return cleanTelegramUsername(
+    user.username
+    || user.tgUsername
+    || user.telegramUsername
+    || user.telegram?.username
+    || ''
+  );
+}
+
+function normalizeProfileDmButtons(user = {}, keyboard) {
+  if (!keyboard?.reply_markup?.inline_keyboard) return keyboard;
+
+  const username = getProfileTelegramUsername(user);
+  const safeKeyboard = {
+    ...keyboard,
+    reply_markup: {
+      ...keyboard.reply_markup,
+      inline_keyboard: keyboard.reply_markup.inline_keyboard.map((row) => {
+        if (!Array.isArray(row)) return row;
+
+        return row.map((button) => {
+          if (!button || typeof button !== 'object') return button;
+
+          const url = typeof button.url === 'string' ? button.url.trim() : '';
+          if (!/^tg:\/\/user\?id=/i.test(url) && !Object.prototype.hasOwnProperty.call(button, 'user_id')) {
+            return button;
+          }
+
+          if (username) {
+            const { user_id, ...rest } = button;
+            return {
+              ...rest,
+              url: `https://t.me/${username}`,
+            };
+          }
+
+          const { url: _url, user_id: _userId, ...rest } = button;
+          return {
+            ...rest,
+            callback_data: 'dm:privacy_restricted',
+          };
+        });
+      }),
+    },
+  };
+
+  return safeKeyboard;
+}
+
 function profileSortValue(user = {}) {
   const profileId = Number(user.profileId || 0);
   if (Number.isFinite(profileId) && profileId > 0) return profileId;
@@ -202,7 +258,10 @@ async function sendOrEditProfileCard(ctx, user, gender, index, total, options = 
   await cleanupProfileUi(ctx, { includeCurrentCallback: true });
   const profileUser = user?.premium ? user : await attachPremiumToUser(user);
   const caption = buildProfileCaption(profileUser, index, total);
-  const keyboard = buildProfileButtons(profileUser, gender, index, total, options.isAdminView);
+  const keyboard = normalizeProfileDmButtons(
+    profileUser,
+    buildProfileButtons(profileUser, gender, index, total, options.isAdminView)
+  );
   const sentMessages = await sendProfileCard(ctx, profileUser, caption, keyboard, {
     album: true,
     premiumRich: true,
@@ -360,7 +419,12 @@ async function showProfileByProfileId(ctx, profileId) {
 
   const profileUser = await attachPremiumToUser(user);
   await cleanupProfileUi(ctx, { includeCurrentCallback: true });
-  const sentMessages = await sendProfileCard(ctx, profileUser, buildProfileCaption(profileUser, 0, 1), buildDirectProfileButtons(profileUser), {
+  const sentMessages = await sendProfileCard(
+    ctx,
+    profileUser,
+    buildProfileCaption(profileUser, 0, 1),
+    normalizeProfileDmButtons(profileUser, buildDirectProfileButtons(profileUser)),
+    {
     album: true,
     premiumRich: true,
     richTitle: 'VIP CUPID PROFILE',
@@ -750,6 +814,10 @@ async function handleIncomingMedia(ctx, next) {
 }
 
 function registerProfileCommands(bot) {
+  bot.action('dm:privacy_restricted', async (ctx) => {
+    await ctx.answerCbQuery('ဒီ profile မှာ Telegram username မရှိလို့ DM button ကို Telegram က ခွင့်မပြုပါ။ Username ထည့်ထားမှ DM ဖွင့်နိုင်ပါတယ်။', { show_alert: true });
+  });
+
   bot.hears('📝 Profile ဖြည့်ရန်', async (ctx) => startProfileFlow(ctx, false));
   bot.hears('✏️ Profile ပြင်ရန်', async (ctx) => startProfileFlow(ctx, true));
   bot.hears('👤 ကျွန်ုပ်၏ Profile', showMyProfile);
