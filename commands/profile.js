@@ -244,7 +244,41 @@ async function showGenderList(ctx, gender, startIndex = 0, isAdminView = false) 
     index = ((index % list.length) + list.length) % list.length;
   }
 
-  await sendOrEditProfileCard(ctx, list[index], gender, index, list.length, { isAdminView });
+  try {
+    await sendOrEditProfileCard(ctx, list[index], gender, index, list.length, { isAdminView });
+    return;
+  } catch (error) {
+    console.error('SHOW_GENDER_LIST_PROFILE_ERROR:', {
+      gender,
+      index,
+      profileId: list[index]?.profileId,
+      telegramId: list[index]?.telegramId,
+      error: error?.response?.description || error?.description || error?.message || error,
+    });
+
+    if (list.length > 1) {
+      const fallbackIndex = (index + 1) % list.length;
+      try {
+        await sendOrEditProfileCard(ctx, list[fallbackIndex], gender, fallbackIndex, list.length, { isAdminView });
+        return;
+      } catch (fallbackError) {
+        console.error('SHOW_GENDER_LIST_FALLBACK_ERROR:', {
+          gender,
+          index: fallbackIndex,
+          profileId: list[fallbackIndex]?.profileId,
+          telegramId: list[fallbackIndex]?.telegramId,
+          error: fallbackError?.response?.description || fallbackError?.description || fallbackError?.message || fallbackError,
+        });
+      }
+    }
+
+    if (ctx.updateType === 'callback_query') {
+      await ctx.answerCbQuery('Profile card ဖွင့်မရသေးပါ။ နောက်မှပြန်စမ်းပါ။', { show_alert: true }).catch(() => {});
+      return;
+    }
+
+    await ctx.reply('❌ Profile card ဖွင့်မရသေးပါ။ ခဏနေရင်ပြန်စမ်းပါ။', mainMenuKeyboard());
+  }
 }
 
 function buildMyProfileCaption(user) {
