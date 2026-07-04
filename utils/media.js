@@ -56,12 +56,21 @@ function sanitizeInlineKeyboardButton(button = {}) {
   if (!button || typeof button !== 'object') return null;
 
   const url = typeof button.url === 'string' ? button.url.trim() : '';
-  if (/^tg:\/\/user\?id=/i.test(url)) return null;
-  if (hasOwn(button, 'user_id')) return null;
+  const safeText = stripRestrictedUserLinks(button.text || '💬 DM စကားပြောမယ်');
+
+  // Telegram rejects tg://user?id buttons for some users with
+  // BUTTON_USER_PRIVACY_RESTRICTED. Do not remove the DM button from UI;
+  // turn it into a normal callback button so the user sees why DM is unavailable.
+  if (/^tg:\/\/user\?id=/i.test(url) || hasOwn(button, 'user_id')) {
+    return {
+      text: safeText,
+      callback_data: 'dm:privacy_restricted',
+    };
+  }
 
   const safeButton = { ...button };
   if (typeof safeButton.text === 'string') {
-    safeButton.text = stripRestrictedUserLinks(safeButton.text);
+    safeButton.text = safeText;
   }
 
   return safeButton;
