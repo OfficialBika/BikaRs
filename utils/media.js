@@ -664,9 +664,18 @@ async function sendPremiumBuyerAlertToSupportChannel(ctx, user, options = {}) {
       ? `https://t.me/${botUsername}?start=profile_${premiumUser.telegramId}`
       : '';
 
-    const alertKeyboard = startUrl ? inlineKeyboard([
-      [urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS)],
-    ]) : null;
+    const dmUrl = user.username
+  ? `https://t.me/${user.username}`
+  : '';
+
+const alertKeyboard = startUrl ? inlineKeyboard([
+  [
+    urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS),
+    ...(dmUrl
+      ? [urlButton('💬 DM စကားပြောရန်', dmUrl, BUTTON_STYLE.PRIMARY)]
+      : []),
+  ],
+]) : null;
     const fallbackText = buildPremiumBuyerAlertText(premiumUser, options);
 
     await sendRichMessage(ctx, SUPPORT_CHANNEL_ID, buildPremiumBuyerAlertRichHtml(premiumUser, options), alertKeyboard, fallbackText, {
@@ -689,9 +698,18 @@ async function sendNewUserAlertToSupportChannel(ctx, user) {
       ? `https://t.me/${botUsername}?start=profile_${user.telegramId}`
       : '';
 
-    const alertKeyboard = startUrl ? inlineKeyboard([
-      [urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS)],
-    ]) : null;
+    const dmUrl = user.username
+  ? `https://t.me/${user.username}`
+  : '';
+
+const alertKeyboard = startUrl ? inlineKeyboard([
+  [
+    urlButton('💘 ရည်းစားရှာရန်', startUrl, BUTTON_STYLE.SUCCESS),
+    ...(dmUrl
+      ? [urlButton('💬 DM စကားပြောရန်', dmUrl, BUTTON_STYLE.PRIMARY)]
+      : []),
+  ],
+]) : null;
     const fallbackText = buildNewUserAlertText(user);
 
     if (isPremiumUser(user)) {
