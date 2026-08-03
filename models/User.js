@@ -51,4 +51,15 @@ const userSchema = new mongoose.Schema(
   { versionKey: false }
 );
 
+userSchema.index({
+  isProfileComplete: 1,
+  isBanned: 1,
+  isHidden: 1,
+  gender: 1,
+  age: 1,
+  createdAt: -1,
+});
+
+userSchema.index({ username: 1 });
+
 module.exports = mongoose.models.User || mongoose.model('User', userSchema);
