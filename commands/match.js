@@ -1,8 +1,9 @@
 const User = require('../models/User');
-const Reaction = require('../models/Reaction');
-const Report = require('../models/Report');
 const { requirePrivateChat } = require('../middlewares/privateOnly');
 const { reactionEmoji, mainMenuKeyboard } = require('../utils/keyboards');
+const { toggleReaction } = require('../services/reactionService');
+const { createReport } = require('../services/reportService');
+const { sendReactionNotification } = require('../services/notificationService');
 const { getProfileByTelegramId, getBrowseList, showGenderList, isPremiumActiveUser } = require('./profile');
 
 function registerMatchCommands(bot) {
@@ -94,48 +95,28 @@ function registerMatchCommands(bot) {
       return;
     }
 
-    const existing = await Reaction.findOne({ fromUserId: fromId, toUserId: targetId });
-    let notifyReactionType = '';
-    let message = '';
+    const reactionResult = await toggleReaction({
+      fromUserId: fromId,
+      toUserId: targetId,
+      type,
+    });
 
-    if (!existing) {
-      await Reaction.create({
-        fromUserId: fromId,
-        toUserId: targetId,
-        type,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
-      targetUser.reactions[type] += 1;
-      notifyReactionType = type;
-      message = `${reactionEmoji(type)} reaction ပေးပြီးပါပြီ။`;
-    } else if (existing.type === type) {
-      await Reaction.deleteOne({ _id: existing._id });
-      targetUser.reactions[type] = Math.max(0, (targetUser.reactions[type] || 0) - 1);
-      message = `${reactionEmoji(type)} reaction ကို ပြန်ဖျက်ပြီးပါပြီ။`;
-    } else {
-      targetUser.reactions[existing.type] = Math.max(0, (targetUser.reactions[existing.type] || 0) - 1);
-      existing.type = type;
-      existing.updatedAt = new Date();
-      await existing.save();
-
-      targetUser.reactions[type] += 1;
-      notifyReactionType = type;
-      message = `${reactionEmoji(type)} reaction ကို ပြောင်းလဲပြီးပါပြီ။`;
-    }
-
-    targetUser.updatedAt = new Date();
-    await targetUser.save();
+    const notifyReactionType = reactionResult.notifyType;
+    const message = reactionResult.action === 'removed'
+      ? `${reactionEmoji(type)} reaction ကို ပြန်ဖျက်ပြီးပါပြီ။`
+      : reactionResult.action === 'changed'
+        ? `${reactionEmoji(type)} reaction ကို ပြောင်းလဲပြီးပါပြီ။`
+        : `${reactionEmoji(type)} reaction ပေးပြီးပါပြီ။`;
 
     if (notifyReactionType) {
       try {
         const emoji = reactionEmoji(notifyReactionType);
-        const totalCount = targetUser.reactions[notifyReactionType] || 0;
-
-        await bot.telegram.sendMessage(
-          targetUser.telegramId,
-          `သင့် profile တွင် ${emoji} reaction အသစ်တစ်ခု ရရှိထားပါသည်။\nစုစုပေါင်း ${emoji} : ${totalCount}`
+        const updatedUser = await User.findOne({ telegramId: targetId });
+        await sendReactionNotification(
+          bot,
+          targetId,
+          emoji,
+          updatedUser?.reactions?.[notifyReactionType] || 0
         );
       } catch (_) {}
     }
@@ -157,14 +138,10 @@ function registerMatchCommands(bot) {
       return;
     }
 
-    await Report.findOneAndUpdate(
-      { reporterId: fromId, targetUserId: targetId },
-      {
-        $set: { reason: 'အတုအယောင် profile', status: 'pending', updatedAt: new Date() },
-        $setOnInsert: { createdAt: new Date() },
-      },
-      { upsert: true, new: true }
-    );
+    await createReport({
+      reporterId: fromId,
+      targetUserId: targetId,
+    });
 
     await ctx.answerCbQuery('🚨 Report ပို့ပြီးပါပြီ။');
     await showGenderList(ctx, gender, index);
