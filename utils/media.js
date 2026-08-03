@@ -665,8 +665,8 @@ async function sendPremiumBuyerAlertToSupportChannel(ctx, user, options = {}) {
       : '';
 
     const dmUrl = user.username
-  ? `https://t.me/${user.username}`
-  : '';
+      ? `https://t.me/${user.username}`
+      : `tg://user?id=${user.telegramId}`;
 
 const alertKeyboard = startUrl ? inlineKeyboard([
   [
@@ -699,8 +699,8 @@ async function sendNewUserAlertToSupportChannel(ctx, user) {
       : '';
 
     const dmUrl = user.username
-  ? `https://t.me/${user.username}`
-  : '';
+      ? `https://t.me/${user.username}`
+      : `tg://user?id=${user.telegramId}`;
 
 const alertKeyboard = startUrl ? inlineKeyboard([
   [
